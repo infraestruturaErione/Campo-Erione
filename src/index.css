@@ -438,6 +438,13 @@ textarea:focus {
     margin-bottom: 0.25rem;
 }
 
+.login-logo {
+    display: block;
+    height: 64px;
+    width: auto;
+    margin: 0 auto 0.75rem;
+}
+
 .input-icon {
     position: relative;
 }

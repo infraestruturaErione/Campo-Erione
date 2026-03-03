@@ -20,7 +20,7 @@ function Login({ onSubmit, loading }) {
     return (
         <div className="login-shell">
             <div className="login-card">
-                <h1>AppCampo</h1>
+                <img src="/logo-erione.png" alt="Erione" className="login-logo" />
                 <p className="text-muted">Acesso restrito para equipe autorizada.</p>
 
                 <form onSubmit={handleSubmit}>
@@ -65,4 +65,3 @@ function Login({ onSubmit, loading }) {
 }
 
 export default Login;
-

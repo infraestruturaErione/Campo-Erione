@@ -8,6 +8,7 @@ const sessions = new Map()
 const AUTH_USERS = [
     { username: 'admin', password: 'motiva123', name: 'Administrador' },
     { username: 'caio', password: 'motiva123', name: 'Caio' },
+    { username: 'fernando', password: '123456', name: 'Fernando' },
 ]
 
 const parseBody = async (req) => new Promise((resolve) => {
