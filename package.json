@@ -1,0 +1,39 @@
+{
+  "name": "teste",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "cap:sync": "npx cap sync android; powershell -ExecutionPolicy Bypass -File scripts/patch-capacitor-java.ps1",
+    "cap:copy": "npx cap copy android",
+    "android:open": "npx cap open android",
+    "android:debug": "powershell -ExecutionPolicy Bypass -File scripts/patch-capacitor-java.ps1; cd android; .\\gradlew.bat assembleDebug"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@capacitor/android": "^7.5.0",
+    "@capacitor/cli": "^7.5.0",
+    "@capacitor/core": "^7.5.0",
+    "@vitejs/plugin-react": "^5.1.4",
+    "exceljs": "^4.4.0",
+    "idb": "^8.0.3",
+    "jspdf": "^4.2.0",
+    "jspdf-autotable": "^5.0.7",
+    "lucide-react": "^0.576.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-window": "^2.2.7",
+    "uuid": "^13.0.0",
+    "vite": "^7.3.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,38 @@
+# Node / Vite
+node_modules/
+dist/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Runtime local artifacts
+progress.txt
+sync-mirror.json
+
+# Capacitor / Android local and build files
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/captures/
+android/.idea/
+android/app/release/
+android/app/debug/
+
+# Optional iOS artifacts (future use)
+ios/DerivedData/
+ios/build/
+
