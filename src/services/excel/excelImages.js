@@ -30,6 +30,29 @@ const convertBlobToJpegBuffer = async (blob) => {
     return response.arrayBuffer();
 };
 
+const fetchRemotePhotoBuffer = async (url) => {
+    if (!url) return null;
+    try {
+        const response = await fetch(url);
+        if (!response.ok) return null;
+        const blob = await response.blob();
+
+        if (blob.type === 'image/png' || blob.type === 'image/jpeg' || blob.type === 'image/jpg') {
+            return {
+                buffer: await blob.arrayBuffer(),
+                extension: blob.type === 'image/png' ? 'png' : 'jpeg',
+            };
+        }
+
+        return {
+            buffer: await convertBlobToJpegBuffer(blob),
+            extension: 'jpeg',
+        };
+    } catch {
+        return null;
+    }
+};
+
 export const addLogo = async (workbook, worksheet) => {
     try {
         const logoUrl = '/logo_motiva.png';
@@ -70,20 +93,27 @@ export const drawPhotos = async (workbook, worksheet, os, startRow, theme) => {
     // Parallelized loading for performance
     const photos = await Promise.all(
         photosMeta.map(async (item) => {
-            const blob = await getPhoto(item.id);
-            if (!blob) return null;
+            const blob = item.id ? await getPhoto(item.id) : null;
+            if (blob) {
+                if (blob.type === 'image/png' || blob.type === 'image/jpeg' || blob.type === 'image/jpg') {
+                    return {
+                        buffer: await blob.arrayBuffer(),
+                        extension: blob.type === 'image/png' ? 'png' : 'jpeg',
+                        note: String(item.note || '').trim(),
+                    };
+                }
 
-            if (blob.type === 'image/png' || blob.type === 'image/jpeg' || blob.type === 'image/jpg') {
                 return {
-                    buffer: await blob.arrayBuffer(),
-                    extension: blob.type === 'image/png' ? 'png' : 'jpeg',
+                    buffer: await convertBlobToJpegBuffer(blob),
+                    extension: 'jpeg',
                     note: String(item.note || '').trim(),
                 };
             }
 
+            const remote = await fetchRemotePhotoBuffer(item.url);
+            if (!remote) return null;
             return {
-                buffer: await convertBlobToJpegBuffer(blob),
-                extension: 'jpeg',
+                ...remote,
                 note: String(item.note || '').trim(),
             };
         })

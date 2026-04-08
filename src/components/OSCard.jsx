@@ -27,7 +27,7 @@ export function OSCard({ os, showCreator = false }) {
 
             <div className="os-grid os-grid-2">
                 <div>
-                    <label>Responsável Contratada</label>
+                    <label>Responsavel Contratada</label>
                     <p>{os.responsavelContratada}</p>
                 </div>
                 <div>
@@ -38,7 +38,7 @@ export function OSCard({ os, showCreator = false }) {
 
             <div className="os-grid os-grid-4">
                 <div>
-                    <label>Início</label>
+                    <label>Inicio</label>
                     <p>{os.horarioInicio}</p>
                 </div>
                 <div>
@@ -49,20 +49,16 @@ export function OSCard({ os, showCreator = false }) {
                     <label>Local</label>
                     <p>{os.local}</p>
                 </div>
-                <div>
-                    <label>Sentido</label>
-                    <p>{os.sentido}</p>
-                </div>
             </div>
 
             <div style={{ marginTop: '1rem' }}>
-                <label>Descrição Detalhada</label>
+                <label>Descricao Detalhada</label>
                 <p style={{ whiteSpace: 'pre-wrap' }}>{os.descricao}</p>
             </div>
 
             {os.ocorrencias && (
                 <div className="occurrence-box">
-                    <label style={{ color: 'var(--warning)' }}>Ocorrências</label>
+                    <label style={{ color: 'var(--warning)' }}>Ocorrencias</label>
                     <p>{os.ocorrencias}</p>
                 </div>
             )}

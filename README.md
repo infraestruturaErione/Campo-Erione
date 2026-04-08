@@ -50,9 +50,21 @@ App web para uso de tecnico em campo: cadastro de OS, fotos, historico e exporta
 - `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/appcampo`
 - `AUTH_API_PORT=3001`
 - `AUTH_API_TARGET=http://localhost:3001`
+- `VITE_API_BASE_URL=` (web dev vazio; para APK usar ex: `http://192.168.0.10:3001`)
 - `AUTH_COOKIE_NAME=appcampo_sid`
 - `SESSION_TTL_HOURS=24`
 - `PG_SSLMODE=disable`
+- `S3_ENDPOINT=https://us-sea-1.linodeobjects.com`
+- `S3_REGION=us-sea-1`
+- `S3_ACCESS_KEY=<sua_key_s3>`
+- `S3_SECRET_KEY=<seu_secret_s3>`
+- `S3_BUCKET=<nome_bucket>`
+- `S3_FORCE_PATH_STYLE=false`
+
+### Teste do bucket S3 (Linode/Akamai)
+
+- Rodar:
+  - `npm run test:s3`
 
 ### Schema de autenticacao
 
@@ -93,6 +105,14 @@ Para voltar ao modo local (`dist`), remova a variavel da sessao:
 - Defina o backend real para sync com:
   - `$env:VITE_SYNC_ENDPOINT = "https://seu-backend.com/api/sync/os"`
 - Sem essa variavel, em desenvolvimento usa `/api/sync/os` (middleware local do Vite).
+
+### Auth no APK (rede local)
+
+- Para APK de teste apontando para API local, defina:
+  - `$env:VITE_API_BASE_URL = "http://SEU_IP_LOCAL:3001"`
+- Exemplo:
+  - `$env:VITE_API_BASE_URL = "http://192.168.0.10:3001"`
+- Depois gere build web e sincronize novamente com Android.
 
 ### Requisitos Android
 

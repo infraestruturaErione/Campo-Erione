@@ -1,9 +1,11 @@
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import bcrypt from 'bcryptjs';
+import multer from 'multer';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { ensureAuthSchema, pool } from './db.js';
+import { uploadImageToBucket } from './s3Service.js';
 
 const app = express();
 const port = Number(process.env.AUTH_API_PORT || 3001);
@@ -14,6 +16,10 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 15 * 1024 * 1024 },
+});
 
 const loginSchema = z.object({
     username: z.string().trim().min(3).max(64),
@@ -413,6 +419,38 @@ app.post('/api/sync/os', requireAuth, async (req, res) => {
     } catch (error) {
         console.error('Erro no sync de OS', error);
         return res.status(500).json({ error: 'Falha ao sincronizar OS' });
+    }
+});
+
+app.post('/api/media/upload', requireAuth, upload.single('file'), async (req, res) => {
+    const file = req.file;
+    const osId = String(req.body?.osId || '');
+
+    if (!file) {
+        return res.status(400).json({ error: 'Arquivo de imagem obrigatorio' });
+    }
+
+    if (!String(file.mimetype || '').startsWith('image/')) {
+        return res.status(400).json({ error: 'Somente imagem pode ser enviada' });
+    }
+
+    try {
+        const uploaded = await uploadImageToBucket({
+            buffer: file.buffer,
+            mimeType: file.mimetype,
+            originalName: file.originalname,
+            osId,
+        });
+
+        return res.status(201).json({
+            objectKey: uploaded.objectKey,
+            url: uploaded.url,
+            mimeType: file.mimetype,
+            size: file.size,
+        });
+    } catch (error) {
+        console.error('Erro ao enviar imagem para bucket', error);
+        return res.status(500).json({ error: 'Falha ao enviar imagem' });
     }
 });
 

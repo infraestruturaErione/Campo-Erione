@@ -1,4 +1,5 @@
-const AUTH_BASE = '/api/auth';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const AUTH_BASE = API_BASE ? `${API_BASE}/api/auth` : '/api/auth';
 
 const parseError = async (response) => {
     const payload = await response.json().catch(() => ({}));
@@ -6,12 +7,17 @@ const parseError = async (response) => {
 };
 
 export const login = async (username, password) => {
-    const response = await fetch(`${AUTH_BASE}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ username, password }),
-    });
+    let response;
+    try {
+        response = await fetch(`${AUTH_BASE}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ username, password }),
+        });
+    } catch {
+        throw new Error('Nao foi possivel conectar com a API de autenticacao.');
+    }
 
     if (!response.ok) {
         throw new Error(await parseError(response));
@@ -22,9 +28,14 @@ export const login = async (username, password) => {
 };
 
 export const getSession = async () => {
-    const response = await fetch(`${AUTH_BASE}/session`, {
-        credentials: 'include',
-    });
+    let response;
+    try {
+        response = await fetch(`${AUTH_BASE}/session`, {
+            credentials: 'include',
+        });
+    } catch {
+        return null;
+    }
 
     if (!response.ok) {
         return null;

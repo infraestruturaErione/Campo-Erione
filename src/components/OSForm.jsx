@@ -11,7 +11,6 @@ const INITIAL_FORM_STATE = {
     horarioInicio: '08:00',
     horarioFim: '18:00',
     local: '',
-    sentido: '-',
     segurancaTrabalho: 'Equipe com treinamento em NR 10 e 35, utilizacao de EPIs por funcao e tarefa, utilizacao de EPCs e sinalizacao de seguranca.',
     descricao: '',
     ocorrencias: '',
@@ -189,11 +188,13 @@ function OSForm({ onSuccess, currentUser }) {
                 {photos.length > 0 && (
                     <div className="photo-grid">
                         {photos.map((photo) => (
-                            <div key={photo.id} className="photo-preview">
-                                <img src={photo.preview} alt="preview" />
-                                <button type="button" className="remove-photo-btn" onClick={() => removePhoto(photo.id)}>
-                                    <X size={12} />
-                                </button>
+                            <div key={photo.id} className="photo-item">
+                                <div className="photo-preview">
+                                    <img src={photo.preview} alt="preview" />
+                                    <button type="button" className="remove-photo-btn" onClick={() => removePhoto(photo.id)}>
+                                        <X size={12} />
+                                    </button>
+                                </div>
                                 <div className="photo-note-box">
                                     <textarea
                                         rows={2}
@@ -245,7 +246,7 @@ function OSForm({ onSuccess, currentUser }) {
                             />
                         </div>
 
-                        <div className="form-grid form-grid-4">
+                        <div className="form-grid form-grid-3">
                             <div className="form-group">
                                 <label>HORARIO INICIO</label>
                                 <input type="time" name="horarioInicio" value={formData.horarioInicio} onChange={handleChange} />
@@ -257,10 +258,6 @@ function OSForm({ onSuccess, currentUser }) {
                             <div className="form-group">
                                 <label>LOCAL</label>
                                 <input name="local" value={formData.local} onChange={handleChange} placeholder="Ex: P06/P07" />
-                            </div>
-                            <div className="form-group">
-                                <label>SENTIDO</label>
-                                <input name="sentido" value={formData.sentido} onChange={handleChange} />
                             </div>
                         </div>
 
@@ -318,10 +315,14 @@ function OSForm({ onSuccess, currentUser }) {
 
                 <div className="wizard-footer">
                     <div className="wizard-footer-inner">
-                        <button type="button" className="btn" onClick={handlePreviousStep} disabled={step === 0 || loading}>
-                            <ChevronLeft size={16} />
-                            Voltar
-                        </button>
+                        {step > 0 ? (
+                            <button type="button" className="btn" onClick={handlePreviousStep} disabled={loading}>
+                                <ChevronLeft size={16} />
+                                Voltar
+                            </button>
+                        ) : (
+                            <div />
+                        )}
 
                         {step < steps.length - 1 ? (
                             <button type="button" className="btn btn-primary" onClick={handleNextStep} disabled={loading}>

@@ -1,19 +1,33 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { RefreshCcw, UserPlus, X, KeyRound, Trash2, Shield, UserCircle2 } from 'lucide-react';
+import {
+    RefreshCcw,
+    UserPlus,
+    X,
+    KeyRound,
+    Trash2,
+    Shield,
+    UserCircle2,
+    Users,
+    UserCheck,
+    UserX,
+} from 'lucide-react';
 import { createAdminUser, deleteAdminUser, fetchAdminUsers, updateAdminUser } from '../services/adminService';
 
 const ROLE_OPTIONS = [
     { value: 'technician', label: 'Tecnico' },
     { value: 'admin', label: 'Administrador' },
 ];
+
 const PAGE_SIZE = 10;
 
 function AdminPanel() {
     const [users, setUsers] = useState([]);
     const [search, setSearch] = useState('');
+    const [roleFilter, setRoleFilter] = useState('all');
     const [loading, setLoading] = useState(true);
     const [savingUserId, setSavingUserId] = useState('');
     const [error, setError] = useState('');
+    const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
 
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [createError, setCreateError] = useState('');
@@ -30,12 +44,13 @@ function AdminPanel() {
     const [passwordError, setPasswordError] = useState('');
     const [page, setPage] = useState(1);
 
-    const loadUsers = async () => {
+    const loadUsers = async (nextSearch = search) => {
         setLoading(true);
         setError('');
         try {
-            const items = await fetchAdminUsers({ search });
+            const items = await fetchAdminUsers({ search: nextSearch });
             setUsers(items);
+            setLastUpdatedAt(new Date());
         } catch (loadError) {
             setError(loadError.message || 'Falha ao carregar usuarios');
         } finally {
@@ -44,16 +59,28 @@ function AdminPanel() {
     };
 
     useEffect(() => {
-        loadUsers();
+        loadUsers('');
     }, []);
 
-    const searchedUsers = useMemo(() => users, [users]);
-    const totalPages = Math.max(1, Math.ceil(searchedUsers.length / PAGE_SIZE));
+    const filteredUsers = useMemo(() => {
+        if (roleFilter === 'all') return users;
+        return users.filter((item) => item.role === roleFilter);
+    }, [users, roleFilter]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
     const paginatedUsers = useMemo(() => {
         const normalizedPage = Math.min(page, totalPages);
         const start = (normalizedPage - 1) * PAGE_SIZE;
-        return searchedUsers.slice(start, start + PAGE_SIZE);
-    }, [searchedUsers, page, totalPages]);
+        return filteredUsers.slice(start, start + PAGE_SIZE);
+    }, [filteredUsers, page, totalPages]);
+
+    const stats = useMemo(() => {
+        const total = users.length;
+        const active = users.filter((item) => item.isActive).length;
+        const inactive = total - active;
+        const admins = users.filter((item) => item.role === 'admin').length;
+        return { total, active, inactive, admins };
+    }, [users]);
 
     useEffect(() => {
         if (page > totalPages) {
@@ -153,13 +180,14 @@ function AdminPanel() {
     };
 
     return (
-        <div className="card">
-            <div className="admin-header-row">
+        <div className="admin-dashboard-shell">
+            <section className="admin-hero-card">
                 <div>
-                    <h2>Usuarios</h2>
-                    <p className="text-muted">Gerencie acessos internos, perfil, status e senha dos usuarios.</p>
+                    <p className="admin-eyebrow">Painel de Controle</p>
+                    <h2>Dashboard de Usuarios</h2>
+                    <p className="text-muted">Governanca de acessos, seguranca operacional e visibilidade executiva em tempo real.</p>
                 </div>
-                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <div className="admin-hero-actions">
                     <button
                         type="button"
                         className="btn btn-primary"
@@ -171,53 +199,126 @@ function AdminPanel() {
                         <UserPlus size={16} />
                         Novo usuario
                     </button>
-                    <button className="btn" style={{ background: '#334155', color: '#fff' }} onClick={loadUsers} disabled={loading}>
+                    <button className="btn" style={{ background: '#334155', color: '#fff' }} onClick={() => loadUsers()} disabled={loading}>
                         <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
                         Atualizar
                     </button>
                 </div>
-            </div>
+            </section>
 
-            <form
-                className="admin-search-row"
-                onSubmit={(event) => {
-                    event.preventDefault();
-                    setPage(1);
-                    loadUsers();
-                }}
-            >
-                <input
-                    type="text"
-                    placeholder="Buscar por nome, usuario ou perfil"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                />
-                <button type="submit" className="btn">Buscar</button>
-            </form>
+            <section className="admin-kpi-grid">
+                <article className="admin-kpi-card">
+                    <div className="admin-kpi-icon"><Users size={18} /></div>
+                    <div>
+                        <p>Total de usuarios</p>
+                        <h3>{stats.total}</h3>
+                    </div>
+                </article>
+                <article className="admin-kpi-card">
+                    <div className="admin-kpi-icon"><UserCheck size={18} /></div>
+                    <div>
+                        <p>Usuarios ativos</p>
+                        <h3>{stats.active}</h3>
+                    </div>
+                </article>
+                <article className="admin-kpi-card">
+                    <div className="admin-kpi-icon"><Shield size={18} /></div>
+                    <div>
+                        <p>Administradores</p>
+                        <h3>{stats.admins}</h3>
+                    </div>
+                </article>
+                <article className="admin-kpi-card">
+                    <div className="admin-kpi-icon"><UserX size={18} /></div>
+                    <div>
+                        <p>Usuarios inativos</p>
+                        <h3>{stats.inactive}</h3>
+                    </div>
+                </article>
+            </section>
 
-            <div className="admin-summary-bar">
-                <span className="text-muted">Total de usuarios: {searchedUsers.length}</span>
-                {totalPages > 1 && <span className="text-muted">Pagina {page} de {totalPages}</span>}
-            </div>
-
-            {error && (
-                <div className="occurrence-box" style={{ marginBottom: '1rem' }}>
-                    <label style={{ color: '#ef4444' }}>Erro</label>
-                    <p>{error}</p>
+            <section className="card admin-panel-core">
+                <div className="admin-toolbar">
+                    <form
+                        className="admin-search-row"
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            setPage(1);
+                            loadUsers(search);
+                        }}
+                    >
+                        <input
+                            type="text"
+                            placeholder="Buscar por nome, usuario ou perfil"
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                        />
+                        <button type="submit" className="btn">Buscar</button>
+                    </form>
+                    <div className="admin-filter-chip-row">
+                        <button
+                            type="button"
+                            className={`admin-chip ${roleFilter === 'all' ? 'active' : ''}`}
+                            onClick={() => {
+                                setRoleFilter('all');
+                                setPage(1);
+                            }}
+                        >
+                            Todos
+                        </button>
+                        <button
+                            type="button"
+                            className={`admin-chip ${roleFilter === 'admin' ? 'active' : ''}`}
+                            onClick={() => {
+                                setRoleFilter('admin');
+                                setPage(1);
+                            }}
+                        >
+                            Admins
+                        </button>
+                        <button
+                            type="button"
+                            className={`admin-chip ${roleFilter === 'technician' ? 'active' : ''}`}
+                            onClick={() => {
+                                setRoleFilter('technician');
+                                setPage(1);
+                            }}
+                        >
+                            Tecnicos
+                        </button>
+                    </div>
                 </div>
-            )}
 
-            {loading ? (
-                <p className="text-muted">Carregando usuarios...</p>
-            ) : searchedUsers.length === 0 ? (
-                <div className="card" style={{ margin: 0 }}>
-                    Nenhum usuario cadastrado.
+                <div className="admin-summary-bar">
+                    <span className="text-muted">Exibindo {filteredUsers.length} usuario(s)</span>
+                    <span className="text-muted">Ultima atualizacao: {lastUpdatedAt ? lastUpdatedAt.toLocaleTimeString('pt-BR') : '-'}</span>
                 </div>
-            ) : (
-                <div className="admin-list">
-                    {paginatedUsers.map((user) => (
-                        <div key={user.id} className="admin-item">
-                            <div className="admin-item-top">
+
+                {error && (
+                    <div className="occurrence-box" style={{ marginBottom: '1rem' }}>
+                        <label style={{ color: '#ef4444' }}>Erro</label>
+                        <p>{error}</p>
+                    </div>
+                )}
+
+                {loading ? (
+                    <p className="text-muted">Carregando usuarios...</p>
+                ) : filteredUsers.length === 0 ? (
+                    <div className="card" style={{ margin: 0 }}>
+                        Nenhum usuario cadastrado.
+                    </div>
+                ) : (
+                    <div className="admin-table">
+                        <div className="admin-table-head">
+                            <span>Usuario</span>
+                            <span>Perfil</span>
+                            <span>Status</span>
+                            <span>Acoes</span>
+                            <span>Criado em</span>
+                        </div>
+
+                        {paginatedUsers.map((user) => (
+                            <div key={user.id} className="admin-table-row">
                                 <div className="admin-user-title-row">
                                     <div className="admin-user-avatar">
                                         {user.role === 'admin' ? <Shield size={16} /> : <UserCircle2 size={16} />}
@@ -227,14 +328,8 @@ function AdminPanel() {
                                         <span className="text-muted">@{user.username}</span>
                                     </div>
                                 </div>
-                                <span className={`badge ${user.role === 'admin' ? 'badge-done' : 'badge-pending'}`}>
-                                    {user.role === 'admin' ? 'ADMIN' : 'TECNICO'}
-                                </span>
-                            </div>
 
-                            <div className="os-grid os-grid-2">
                                 <div>
-                                    <label>Perfil</label>
                                     <select
                                         value={user.role}
                                         onChange={(event) => handleUserUpdate(user.id, { role: event.target.value })}
@@ -245,73 +340,73 @@ function AdminPanel() {
                                         ))}
                                     </select>
                                 </div>
-                                <div>
-                                    <label>Status</label>
-                                    <div className="admin-user-status-row">
-                                        <span>{user.isActive ? 'Ativo' : 'Inativo'}</span>
-                                        <button
-                                            type="button"
-                                            className="btn"
-                                            onClick={() => handleUserUpdate(user.id, { isActive: !user.isActive })}
-                                            disabled={savingUserId === user.id}
-                                            style={{ background: user.isActive ? '#b91c1c' : '#166534', color: '#fff' }}
-                                        >
-                                            {user.isActive ? 'Desativar' : 'Ativar'}
-                                        </button>
-                                    </div>
+
+                                <div className="admin-user-status-row">
+                                    <span className={`badge ${user.isActive ? 'badge-done' : 'badge-pending'}`}>
+                                        {user.isActive ? 'Ativo' : 'Inativo'}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        className="btn"
+                                        onClick={() => handleUserUpdate(user.id, { isActive: !user.isActive })}
+                                        disabled={savingUserId === user.id}
+                                        style={{ background: user.isActive ? '#7f1d1d' : '#14532d', color: '#fff', padding: '0.45rem 0.75rem' }}
+                                    >
+                                        {user.isActive ? 'Desativar' : 'Ativar'}
+                                    </button>
                                 </div>
+
+                                <div className="admin-user-actions-row">
+                                    <button
+                                        type="button"
+                                        className="btn"
+                                        style={{ background: '#075985', color: '#fff', padding: '0.45rem 0.75rem' }}
+                                        onClick={() => openResetPassword(user)}
+                                        disabled={savingUserId === user.id}
+                                    >
+                                        <KeyRound size={16} />
+                                        Senha
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="btn"
+                                        style={{ background: '#991b1b', color: '#fff', padding: '0.45rem 0.75rem' }}
+                                        onClick={() => handleDeleteUser(user)}
+                                        disabled={savingUserId === user.id}
+                                    >
+                                        <Trash2 size={16} />
+                                        Excluir
+                                    </button>
+                                </div>
+
+                                <p className="text-muted">{new Date(user.createdAt).toLocaleString('pt-BR')}</p>
                             </div>
+                        ))}
+                    </div>
+                )}
 
-                            <div className="admin-user-actions-row">
-                                <button
-                                    type="button"
-                                    className="btn"
-                                    style={{ background: '#0369a1', color: '#fff' }}
-                                    onClick={() => openResetPassword(user)}
-                                    disabled={savingUserId === user.id}
-                                >
-                                    <KeyRound size={16} />
-                                    Atualizar senha
-                                </button>
-                                <button
-                                    type="button"
-                                    className="btn"
-                                    style={{ background: '#b91c1c', color: '#fff' }}
-                                    onClick={() => handleDeleteUser(user)}
-                                    disabled={savingUserId === user.id}
-                                >
-                                    <Trash2 size={16} />
-                                    Excluir usuario
-                                </button>
-                            </div>
-
-                            <p className="text-muted">Criado em: {new Date(user.createdAt).toLocaleString('pt-BR')}</p>
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {totalPages > 1 && (
-                <div className="history-pagination">
-                    <button
-                        type="button"
-                        className="btn"
-                        onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                        disabled={page <= 1}
-                    >
-                        Anterior
-                    </button>
-                    <span className="text-muted">Pagina {page} de {totalPages}</span>
-                    <button
-                        type="button"
-                        className="btn"
-                        onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-                        disabled={page >= totalPages}
-                    >
-                        Proxima
-                    </button>
-                </div>
-            )}
+                {totalPages > 1 && (
+                    <div className="history-pagination">
+                        <button
+                            type="button"
+                            className="btn"
+                            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                            disabled={page <= 1}
+                        >
+                            Anterior
+                        </button>
+                        <span className="text-muted">Pagina {page} de {totalPages}</span>
+                        <button
+                            type="button"
+                            className="btn"
+                            onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                            disabled={page >= totalPages}
+                        >
+                            Proxima
+                        </button>
+                    </div>
+                )}
+            </section>
 
             {createModalOpen && (
                 <div className="modal-backdrop" role="presentation" onClick={() => setCreateModalOpen(false)}>

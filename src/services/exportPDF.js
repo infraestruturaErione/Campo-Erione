@@ -77,7 +77,19 @@ const normalizePhotoForPdf = async (blob) => {
     return imageToJpegDataUrl(rawDataUrl);
 };
 
-export const exportToPDF = async (os) => {
+const fetchRemotePhotoDataUrl = async (url) => {
+    if (!url) return null;
+    try {
+        const response = await fetch(url);
+        if (!response.ok) return null;
+        const blob = await response.blob();
+        return normalizePhotoForPdf(blob);
+    } catch {
+        return null;
+    }
+};
+
+const buildPdfDocument = async (os) => {
     const doc = new jsPDF();
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -148,8 +160,7 @@ export const exportToPDF = async (os) => {
     drawField('HORARIO FIM:', os.horarioFim, col2, currentY, pageWidth - 14);
 
     currentY += 10;
-    drawField('LOCAL:', os.local, col1, currentY, 110);
-    drawField('SENTIDO:', os.sentido, col2, currentY, pageWidth - 14);
+    drawField('LOCAL:', os.local, col1, currentY, pageWidth - 14);
 
     currentY += 15;
 
@@ -201,8 +212,10 @@ export const exportToPDF = async (os) => {
 
         const photoData = await Promise.all(
             photosMeta.map(async (item) => {
-                const blob = await getPhoto(item.id);
-                const base64 = await normalizePhotoForPdf(blob);
+                const localBlob = item.id ? await getPhoto(item.id) : null;
+                const base64 = localBlob
+                    ? await normalizePhotoForPdf(localBlob)
+                    : await fetchRemotePhotoDataUrl(item.url);
                 return {
                     base64,
                     note: String(item.note || '').trim(),
@@ -244,5 +257,17 @@ export const exportToPDF = async (os) => {
     }
 
     const safeObra = sanitizeFileName(os.obraEquipamento);
-    doc.save(`Relatorio_Obra_${safeObra}_${new Date(os.createdAt).getTime()}.pdf`);
+    const filename = `Relatorio_Obra_${safeObra}_${new Date(os.createdAt).getTime()}.pdf`;
+    return { doc, filename };
+};
+
+export const exportToPDF = async (os) => {
+    const { doc, filename } = await buildPdfDocument(os);
+    doc.save(filename);
+};
+
+export const exportToPDFBlob = async (os) => {
+    const { doc, filename } = await buildPdfDocument(os);
+    const blob = doc.output('blob');
+    return { blob, filename };
 };

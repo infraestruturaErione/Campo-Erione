@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { FileText, FileSpreadsheet, Loader2, Trash2 } from 'lucide-react';
-import { exportToExcel } from '../services/exportExcel';
-import { exportToPDF } from '../services/exportPDF';
+import { FileText, FileSpreadsheet, Loader2, Trash2, MessageCircle } from 'lucide-react';
+import { exportToExcel, exportToExcelBlob } from '../services/exportExcel';
+import { exportToPDF, exportToPDFBlob } from '../services/exportPDF';
 import { removeOS } from '../services/osService';
 
 export function OSActions({ os }) {
     const [exporting, setExporting] = useState(null);
     const [deleting, setDeleting] = useState(false);
+    const [sharing, setSharing] = useState(false);
 
     const handleExport = async (type) => {
         setExporting(type);
@@ -39,6 +40,63 @@ export function OSActions({ os }) {
         }
     };
 
+    const buildWhatsAppMessage = () => {
+        const lines = [
+            'Relatorio Diario de Obras',
+            `OS: #${String(os.id || '').slice(-6)}`,
+            `Obra/Equipamento: ${os.obraEquipamento || '-'}`,
+            `Responsavel Contratada: ${os.responsavelContratada || '-'}`,
+            `Status: ${os.status || '-'}`,
+            `Data: ${new Date(os.createdAt).toLocaleString('pt-BR')}`,
+        ];
+        return lines.join('\n');
+    };
+
+    const handleShareWhatsApp = async () => {
+        const message = buildWhatsAppMessage();
+        const encoded = encodeURIComponent(message);
+        const waLink = `https://wa.me/?text=${encoded}`;
+
+        setSharing(true);
+        try {
+            if (navigator.share) {
+                const [{ blob: pdfBlob, filename: pdfName }, { blob: excelBlob, filename: excelName }] = await Promise.all([
+                    exportToPDFBlob(os),
+                    exportToExcelBlob(os),
+                ]);
+
+                const files = [
+                    new File([pdfBlob], pdfName, { type: 'application/pdf' }),
+                    new File([excelBlob], excelName, {
+                        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    }),
+                ];
+
+                if (navigator.canShare && navigator.canShare({ files })) {
+                    await navigator.share({
+                        title: `OS ${String(os.id || '').slice(-6)}`,
+                        text: message,
+                        files,
+                    });
+                    return;
+                }
+
+                await navigator.share({
+                    title: `OS ${String(os.id || '').slice(-6)}`,
+                    text: message,
+                });
+                return;
+            }
+
+            window.open(waLink, '_blank');
+        } catch (error) {
+            console.warn('Share cancelled or unavailable', error);
+            window.open(waLink, '_blank');
+        } finally {
+            setSharing(false);
+        }
+    };
+
     return (
         <div className="export-actions">
             <button
@@ -60,9 +118,18 @@ export function OSActions({ os }) {
             </button>
             <button
                 className="btn"
+                style={{ background: '#16a34a', color: 'white' }}
+                onClick={handleShareWhatsApp}
+                disabled={!!exporting || deleting || sharing}
+            >
+                {sharing ? <Loader2 className="animate-spin" /> : <MessageCircle size={18} />}
+                WhatsApp
+            </button>
+            <button
+                className="btn"
                 style={{ background: '#b91c1c', color: 'white' }}
                 onClick={handleDelete}
-                disabled={!!exporting || deleting}
+                disabled={!!exporting || deleting || sharing}
             >
                 {deleting ? <Loader2 className="animate-spin" /> : <Trash2 size={18} />}
                 Apagar

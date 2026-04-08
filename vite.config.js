@@ -54,6 +54,10 @@ export default defineConfig({
                 target: process.env.AUTH_API_TARGET || 'http://localhost:3001',
                 changeOrigin: true,
             },
+            '/api/media': {
+                target: process.env.AUTH_API_TARGET || 'http://localhost:3001',
+                changeOrigin: true,
+            },
         },
     },
     plugins: [

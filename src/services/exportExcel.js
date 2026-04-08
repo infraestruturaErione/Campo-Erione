@@ -12,7 +12,7 @@ const sanitizeFileName = (value) =>
         .trim()
         .replace(/\s+/g, '_');
 
-export const exportToExcel = async (os) => {
+const buildExcelWorkbook = async (os) => {
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'AppCampo - Motiva Engenharia';
     workbook.lastModifiedBy = 'AppCampo';
@@ -78,8 +78,7 @@ export const exportToExcel = async (os) => {
     }, theme);
 
     drawRow(worksheet, 8, {
-        label1: 'LOCAL:', value1: os.local || '-', mergeEnd1: 4,
-        label2: 'SENTIDO:', value2: os.sentido || '-',
+        label1: 'LOCAL:', value1: os.local || '-', mergeEnd1: 6,
     }, theme);
 
     let nextY = drawBigBox(worksheet, 10, 'Implantacao de Seguranca do Trabalho:', os.segurancaTrabalho || '-', theme);
@@ -90,5 +89,20 @@ export const exportToExcel = async (os) => {
 
     const safeObra = sanitizeFileName(os.obraEquipamento);
     const timestamp = new Date().getTime();
-    await downloadExcel(workbook, `Relatorio_${safeObra}_${timestamp}.xlsx`);
+    const filename = `Relatorio_${safeObra}_${timestamp}.xlsx`;
+    return { workbook, filename };
+};
+
+export const exportToExcel = async (os) => {
+    const { workbook, filename } = await buildExcelWorkbook(os);
+    await downloadExcel(workbook, filename);
+};
+
+export const exportToExcelBlob = async (os) => {
+    const { workbook, filename } = await buildExcelWorkbook(os);
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    return { blob, filename };
 };

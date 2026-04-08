@@ -1,10 +1,12 @@
-import { getOSList, saveOS } from './storage';
+import { getOSList, getPhoto, saveOS } from './storage';
 import { logProgress } from './progressLog';
 import { emitOSUpdated } from '../events/eventBus';
 
 const SYNC_QUEUE_KEY = 'appcampo_sync_queue_v1';
 const SYNC_STATE_KEY = 'appcampo_sync_state_v1';
-const SYNC_ENDPOINT = import.meta.env.VITE_SYNC_ENDPOINT || '/api/sync/os';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const SYNC_ENDPOINT = import.meta.env.VITE_SYNC_ENDPOINT || (API_BASE ? `${API_BASE}/api/sync/os` : '/api/sync/os');
+const MEDIA_UPLOAD_ENDPOINT = API_BASE ? `${API_BASE}/api/media/upload` : '/api/media/upload';
 let syncInFlight = false;
 
 const loadQueue = () => {
@@ -33,12 +35,12 @@ export const getSyncState = () => {
 
 export const getPendingSyncCount = () => loadQueue().length;
 
-const updateOSSyncStatus = (osId, statusSync) => {
+const updateOSSyncStatus = (osId, statusSync, patch = {}) => {
     const list = getOSList();
     const target = list.find((item) => item.id === osId);
     if (!target) return;
 
-    saveOS({ ...target, statusSync });
+    saveOS({ ...target, ...patch, statusSync });
 };
 
 const upsertQueueOperation = (operation) => {
@@ -103,6 +105,73 @@ const sendSyncOperation = async (operation) => {
     }
 };
 
+const uploadPhotoToBucket = async ({ osId, photoMeta, blob }) => {
+    const formData = new FormData();
+    const extension = blob.type === 'image/png' ? 'png' : 'jpg';
+    const filename = `${photoMeta.id || crypto.randomUUID()}.${extension}`;
+    formData.append('file', blob, filename);
+    formData.append('osId', osId);
+
+    const response = await fetch(MEDIA_UPLOAD_ENDPOINT, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+    });
+
+    if (!response.ok) {
+        throw new Error(`Falha no upload da imagem (HTTP ${response.status})`);
+    }
+
+    return response.json();
+};
+
+const ensureSyncedPhotoMeta = async (operation) => {
+    if (operation?.type !== 'UPSERT') {
+        return operation;
+    }
+
+    const payload = operation.payload || {};
+    const sourceMeta = Array.isArray(payload.photosMeta) && payload.photosMeta.length > 0
+        ? payload.photosMeta
+        : (payload.photoIds || []).map((id) => ({ id, note: '' }));
+
+    const syncedMeta = [];
+    for (const photoMeta of sourceMeta) {
+        if (photoMeta.objectKey && photoMeta.url) {
+            syncedMeta.push(photoMeta);
+            continue;
+        }
+
+        const blob = photoMeta.id ? await getPhoto(photoMeta.id) : null;
+        if (!blob) {
+            syncedMeta.push(photoMeta);
+            continue;
+        }
+
+        const uploaded = await uploadPhotoToBucket({
+            osId: operation.osId,
+            photoMeta,
+            blob,
+        });
+
+        syncedMeta.push({
+            ...photoMeta,
+            objectKey: uploaded.objectKey,
+            url: uploaded.url,
+            mimeType: uploaded.mimeType,
+            size: uploaded.size,
+        });
+    }
+
+    return {
+        ...operation,
+        payload: {
+            ...payload,
+            photosMeta: syncedMeta,
+        },
+    };
+};
+
 export const syncPendingOperations = async () => {
     if (syncInFlight) {
         return getSyncState();
@@ -122,11 +191,17 @@ export const syncPendingOperations = async () => {
 
     try {
         while (queue.length > 0) {
-            const current = queue[0];
+            let current = queue[0];
+            current = await ensureSyncedPhotoMeta(current);
+            queue[0] = current;
+            saveQueue(queue);
+
             await sendSyncOperation(current);
 
             if (current.type === 'UPSERT') {
-                updateOSSyncStatus(current.osId, 'SINCRONIZADO');
+                updateOSSyncStatus(current.osId, 'SINCRONIZADO', {
+                    photosMeta: current.payload?.photosMeta || [],
+                });
             }
 
             queue = queue.slice(1);
