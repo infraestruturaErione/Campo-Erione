@@ -1,36 +1,32 @@
-const AUTH_TOKEN_KEY = 'appcampo_auth_token';
+const AUTH_BASE = '/api/auth';
+
+const parseError = async (response) => {
+    const payload = await response.json().catch(() => ({}));
+    return payload.error || 'Falha na autenticacao';
+};
 
 export const login = async (username, password) => {
-    const response = await fetch('/api/auth/login', {
+    const response = await fetch(`${AUTH_BASE}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ username, password }),
     });
 
     if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.error || 'Falha no login');
+        throw new Error(await parseError(response));
     }
 
     const payload = await response.json();
-    localStorage.setItem(AUTH_TOKEN_KEY, payload.token);
     return payload.user;
 };
 
 export const getSession = async () => {
-    const token = localStorage.getItem(AUTH_TOKEN_KEY);
-    if (!token) {
-        return null;
-    }
-
-    const response = await fetch('/api/auth/session', {
-        headers: {
-            Authorization: `Bearer ${token}`,
-        },
+    const response = await fetch(`${AUTH_BASE}/session`, {
+        credentials: 'include',
     });
 
     if (!response.ok) {
-        localStorage.removeItem(AUTH_TOKEN_KEY);
         return null;
     }
 
@@ -39,18 +35,8 @@ export const getSession = async () => {
 };
 
 export const logout = async () => {
-    const token = localStorage.getItem(AUTH_TOKEN_KEY);
-    localStorage.removeItem(AUTH_TOKEN_KEY);
-
-    if (!token) {
-        return;
-    }
-
-    await fetch('/api/auth/logout', {
+    await fetch(`${AUTH_BASE}/logout`, {
         method: 'POST',
-        headers: {
-            Authorization: `Bearer ${token}`,
-        },
+        credentials: 'include',
     }).catch(() => null);
 };
-

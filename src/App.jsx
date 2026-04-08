@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { LogOut, PlusCircle, History, RefreshCcw, CloudOff } from 'lucide-react';
+import { LogOut, PlusCircle, History, RefreshCcw, CloudOff, Shield } from 'lucide-react';
 import OSForm from './components/OSForm';
 import OSList from './components/OSList';
+import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
 import { getSession, login, logout } from './services/authService';
 import { logProgress, logSystemStartup } from './services/progressLog';
@@ -25,6 +26,9 @@ function App() {
         const restoreSession = async () => {
             const user = await getSession();
             setCurrentUser(user);
+            if (user?.role === 'admin') {
+                setActiveTab('admin');
+            }
             setAuthLoading(false);
         };
 
@@ -60,11 +64,20 @@ function App() {
     }, []);
 
     const renderContent = () => {
+        if (currentUser?.role === 'admin') {
+            if (activeTab === 'historico') {
+                return <OSList currentUser={currentUser} />;
+            }
+            return <AdminPanel />;
+        }
+
         switch (activeTab) {
             case 'nova':
-                return <OSForm onSuccess={() => setActiveTab('historico')} />;
-            case 'historico': return <OSList />;
-            default: return <OSForm />;
+                return <OSForm onSuccess={() => setActiveTab('historico')} currentUser={currentUser} />;
+            case 'historico':
+                return <OSList currentUser={currentUser} />;
+            default:
+                return <OSForm currentUser={currentUser} />;
         }
     };
 
@@ -73,6 +86,7 @@ function App() {
         try {
             const user = await login(username, password);
             setCurrentUser(user);
+            setActiveTab(user?.role === 'admin' ? 'admin' : 'nova');
             await logProgress('AUTH', `Login aprovado para ${user.name}`, 'CHECK');
         } finally {
             setLoginLoading(false);
@@ -82,6 +96,7 @@ function App() {
     const handleLogout = async () => {
         await logout();
         setCurrentUser(null);
+        setActiveTab('nova');
         await logProgress('AUTH', 'Logout executado', 'ACT');
     };
 
@@ -112,20 +127,33 @@ function App() {
                         <img src="/logo-erione.png" alt="Erione" className="logo-image" />
                     </div>
                     <div className="tabs">
-                        <button
-                            className={`tab-btn ${activeTab === 'nova' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('nova')}
-                        >
-                            <PlusCircle size={18} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-                            Nova OS
-                        </button>
+                        {currentUser?.role !== 'admin' && (
+                            <button
+                                className={`tab-btn ${activeTab === 'nova' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('nova')}
+                            >
+                                <PlusCircle size={18} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
+                                Nova OS
+                            </button>
+                        )}
+
                         <button
                             className={`tab-btn ${activeTab === 'historico' ? 'active' : ''}`}
                             onClick={() => setActiveTab('historico')}
                         >
                             <History size={18} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-                            Histórico
+                            Historico
                         </button>
+
+                        {currentUser?.role === 'admin' && (
+                            <button
+                                className={`tab-btn ${activeTab === 'admin' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('admin')}
+                            >
+                                <Shield size={18} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
+                                Usuarios
+                            </button>
+                        )}
                     </div>
                     <div className="sync-chip">
                         {!isOnline && <CloudOff size={14} />}

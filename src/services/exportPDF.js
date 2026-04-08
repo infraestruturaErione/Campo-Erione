@@ -189,33 +189,47 @@ export const exportToPDF = async (os) => {
     doc.rect(10, currentY, pageWidth - 20, 10);
     currentY += 15;
 
-    if (os.photoIds && os.photoIds.length > 0) {
+    const photosMeta = Array.isArray(os.photosMeta) && os.photosMeta.length > 0
+        ? os.photosMeta
+        : (os.photoIds || []).map((id) => ({ id, note: '' }));
+
+    if (photosMeta.length > 0) {
         let photoX = 14;
         const photoWidth = 85;
-        const photoHeight = 60;
+        const photoHeight = 52;
+        const photoSlotHeight = 66;
 
         const photoData = await Promise.all(
-            os.photoIds.map(async (id) => {
-                const blob = await getPhoto(id);
-                return normalizePhotoForPdf(blob);
+            photosMeta.map(async (item) => {
+                const blob = await getPhoto(item.id);
+                const base64 = await normalizePhotoForPdf(blob);
+                return {
+                    base64,
+                    note: String(item.note || '').trim(),
+                };
             })
         );
 
-        const validPhotos = photoData.filter(Boolean);
+        const validPhotos = photoData.filter((item) => Boolean(item.base64));
 
         for (let i = 0; i < validPhotos.length; i += 1) {
-            const base64 = validPhotos[i];
-            ensurePageSpace(photoHeight + 5);
+            const currentPhoto = validPhotos[i];
+            ensurePageSpace(photoSlotHeight + 4);
 
-            doc.addImage(base64, detectImageFormat(base64), photoX, currentY, photoWidth, photoHeight, undefined, 'FAST');
+            doc.addImage(currentPhoto.base64, detectImageFormat(currentPhoto.base64), photoX, currentY, photoWidth, photoHeight, undefined, 'FAST');
             doc.setDrawColor(0);
             doc.rect(photoX, currentY, photoWidth, photoHeight);
+
+            const noteLabel = fitTextInWidth(doc, `Obs: ${currentPhoto.note || '-'}`, photoWidth - 2);
+            doc.setFontSize(8);
+            doc.setFont(undefined, 'normal');
+            doc.text(noteLabel, photoX + 1, currentY + photoHeight + 5);
 
             if (i % 2 === 0 && i !== validPhotos.length - 1) {
                 photoX = 110;
             } else {
                 photoX = 14;
-                currentY += photoHeight + 10;
+                currentY += photoSlotHeight;
             }
         }
     }

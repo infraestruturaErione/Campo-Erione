@@ -1,0 +1,414 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { RefreshCcw, UserPlus, X, KeyRound, Trash2, Shield, UserCircle2 } from 'lucide-react';
+import { createAdminUser, deleteAdminUser, fetchAdminUsers, updateAdminUser } from '../services/adminService';
+
+const ROLE_OPTIONS = [
+    { value: 'technician', label: 'Tecnico' },
+    { value: 'admin', label: 'Administrador' },
+];
+const PAGE_SIZE = 10;
+
+function AdminPanel() {
+    const [users, setUsers] = useState([]);
+    const [search, setSearch] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [savingUserId, setSavingUserId] = useState('');
+    const [error, setError] = useState('');
+
+    const [createModalOpen, setCreateModalOpen] = useState(false);
+    const [createError, setCreateError] = useState('');
+    const [form, setForm] = useState({
+        name: '',
+        username: '',
+        password: '',
+        role: 'technician',
+    });
+
+    const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+    const [passwordTargetUser, setPasswordTargetUser] = useState(null);
+    const [newPassword, setNewPassword] = useState('');
+    const [passwordError, setPasswordError] = useState('');
+    const [page, setPage] = useState(1);
+
+    const loadUsers = async () => {
+        setLoading(true);
+        setError('');
+        try {
+            const items = await fetchAdminUsers({ search });
+            setUsers(items);
+        } catch (loadError) {
+            setError(loadError.message || 'Falha ao carregar usuarios');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadUsers();
+    }, []);
+
+    const searchedUsers = useMemo(() => users, [users]);
+    const totalPages = Math.max(1, Math.ceil(searchedUsers.length / PAGE_SIZE));
+    const paginatedUsers = useMemo(() => {
+        const normalizedPage = Math.min(page, totalPages);
+        const start = (normalizedPage - 1) * PAGE_SIZE;
+        return searchedUsers.slice(start, start + PAGE_SIZE);
+    }, [searchedUsers, page, totalPages]);
+
+    useEffect(() => {
+        if (page > totalPages) {
+            setPage(totalPages);
+        }
+    }, [page, totalPages]);
+
+    const handleCreateUser = async (event) => {
+        event.preventDefault();
+        setCreateError('');
+
+        if (String(form.password || '').length < 6) {
+            setCreateError('Senha inicial deve ter no minimo 6 caracteres.');
+            return;
+        }
+
+        try {
+            await createAdminUser({
+                name: form.name.trim(),
+                username: form.username.trim(),
+                password: form.password,
+                role: form.role,
+            });
+            setForm({ name: '', username: '', password: '', role: 'technician' });
+            setCreateModalOpen(false);
+            await loadUsers();
+            setPage(1);
+        } catch (createRequestError) {
+            setCreateError(createRequestError.message || 'Nao foi possivel criar usuario');
+        }
+    };
+
+    const handleUserUpdate = async (userId, payload) => {
+        setSavingUserId(userId);
+        try {
+            await updateAdminUser(userId, payload);
+            await loadUsers();
+        } catch (updateError) {
+            alert(updateError.message || 'Nao foi possivel atualizar usuario');
+        } finally {
+            setSavingUserId('');
+        }
+    };
+
+    const handleDeleteUser = async (user) => {
+        const shouldDelete = window.confirm(
+            `Excluir usuario ${user.name} (@${user.username})?\n\nO historico de OS sera mantido no painel admin.`
+        );
+
+        if (!shouldDelete) return;
+
+        setSavingUserId(user.id);
+        try {
+            await deleteAdminUser(user.id);
+            await loadUsers();
+            setPage(1);
+        } catch (deleteError) {
+            alert(deleteError.message || 'Nao foi possivel excluir usuario');
+        } finally {
+            setSavingUserId('');
+        }
+    };
+
+    const openResetPassword = (user) => {
+        setPasswordTargetUser(user);
+        setNewPassword('');
+        setPasswordError('');
+        setPasswordModalOpen(true);
+    };
+
+    const submitPasswordReset = async (event) => {
+        event.preventDefault();
+        setPasswordError('');
+
+        if (newPassword.length < 6) {
+            setPasswordError('A nova senha deve ter no minimo 6 caracteres.');
+            return;
+        }
+
+        if (!passwordTargetUser) {
+            setPasswordError('Usuario invalido para reset de senha.');
+            return;
+        }
+
+        setSavingUserId(passwordTargetUser.id);
+        try {
+            await updateAdminUser(passwordTargetUser.id, { password: newPassword });
+            setPasswordModalOpen(false);
+            setPasswordTargetUser(null);
+            setNewPassword('');
+            await loadUsers();
+        } catch (resetError) {
+            setPasswordError(resetError.message || 'Nao foi possivel atualizar a senha');
+        } finally {
+            setSavingUserId('');
+        }
+    };
+
+    return (
+        <div className="card">
+            <div className="admin-header-row">
+                <div>
+                    <h2>Usuarios</h2>
+                    <p className="text-muted">Gerencie acessos internos, perfil, status e senha dos usuarios.</p>
+                </div>
+                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => {
+                            setCreateError('');
+                            setCreateModalOpen(true);
+                        }}
+                    >
+                        <UserPlus size={16} />
+                        Novo usuario
+                    </button>
+                    <button className="btn" style={{ background: '#334155', color: '#fff' }} onClick={loadUsers} disabled={loading}>
+                        <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
+                        Atualizar
+                    </button>
+                </div>
+            </div>
+
+            <form
+                className="admin-search-row"
+                onSubmit={(event) => {
+                    event.preventDefault();
+                    setPage(1);
+                    loadUsers();
+                }}
+            >
+                <input
+                    type="text"
+                    placeholder="Buscar por nome, usuario ou perfil"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                />
+                <button type="submit" className="btn">Buscar</button>
+            </form>
+
+            <div className="admin-summary-bar">
+                <span className="text-muted">Total de usuarios: {searchedUsers.length}</span>
+                {totalPages > 1 && <span className="text-muted">Pagina {page} de {totalPages}</span>}
+            </div>
+
+            {error && (
+                <div className="occurrence-box" style={{ marginBottom: '1rem' }}>
+                    <label style={{ color: '#ef4444' }}>Erro</label>
+                    <p>{error}</p>
+                </div>
+            )}
+
+            {loading ? (
+                <p className="text-muted">Carregando usuarios...</p>
+            ) : searchedUsers.length === 0 ? (
+                <div className="card" style={{ margin: 0 }}>
+                    Nenhum usuario cadastrado.
+                </div>
+            ) : (
+                <div className="admin-list">
+                    {paginatedUsers.map((user) => (
+                        <div key={user.id} className="admin-item">
+                            <div className="admin-item-top">
+                                <div className="admin-user-title-row">
+                                    <div className="admin-user-avatar">
+                                        {user.role === 'admin' ? <Shield size={16} /> : <UserCircle2 size={16} />}
+                                    </div>
+                                    <div>
+                                        <h3>{user.name}</h3>
+                                        <span className="text-muted">@{user.username}</span>
+                                    </div>
+                                </div>
+                                <span className={`badge ${user.role === 'admin' ? 'badge-done' : 'badge-pending'}`}>
+                                    {user.role === 'admin' ? 'ADMIN' : 'TECNICO'}
+                                </span>
+                            </div>
+
+                            <div className="os-grid os-grid-2">
+                                <div>
+                                    <label>Perfil</label>
+                                    <select
+                                        value={user.role}
+                                        onChange={(event) => handleUserUpdate(user.id, { role: event.target.value })}
+                                        disabled={savingUserId === user.id}
+                                    >
+                                        {ROLE_OPTIONS.map((roleOption) => (
+                                            <option key={roleOption.value} value={roleOption.value}>{roleOption.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Status</label>
+                                    <div className="admin-user-status-row">
+                                        <span>{user.isActive ? 'Ativo' : 'Inativo'}</span>
+                                        <button
+                                            type="button"
+                                            className="btn"
+                                            onClick={() => handleUserUpdate(user.id, { isActive: !user.isActive })}
+                                            disabled={savingUserId === user.id}
+                                            style={{ background: user.isActive ? '#b91c1c' : '#166534', color: '#fff' }}
+                                        >
+                                            {user.isActive ? 'Desativar' : 'Ativar'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="admin-user-actions-row">
+                                <button
+                                    type="button"
+                                    className="btn"
+                                    style={{ background: '#0369a1', color: '#fff' }}
+                                    onClick={() => openResetPassword(user)}
+                                    disabled={savingUserId === user.id}
+                                >
+                                    <KeyRound size={16} />
+                                    Atualizar senha
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn"
+                                    style={{ background: '#b91c1c', color: '#fff' }}
+                                    onClick={() => handleDeleteUser(user)}
+                                    disabled={savingUserId === user.id}
+                                >
+                                    <Trash2 size={16} />
+                                    Excluir usuario
+                                </button>
+                            </div>
+
+                            <p className="text-muted">Criado em: {new Date(user.createdAt).toLocaleString('pt-BR')}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {totalPages > 1 && (
+                <div className="history-pagination">
+                    <button
+                        type="button"
+                        className="btn"
+                        onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                        disabled={page <= 1}
+                    >
+                        Anterior
+                    </button>
+                    <span className="text-muted">Pagina {page} de {totalPages}</span>
+                    <button
+                        type="button"
+                        className="btn"
+                        onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                        disabled={page >= totalPages}
+                    >
+                        Proxima
+                    </button>
+                </div>
+            )}
+
+            {createModalOpen && (
+                <div className="modal-backdrop" role="presentation" onClick={() => setCreateModalOpen(false)}>
+                    <div className="modal-card admin-modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+                        <div className="modal-header">
+                            <h2>Novo usuario</h2>
+                            <button type="button" className="icon-btn" onClick={() => setCreateModalOpen(false)} aria-label="Fechar modal">
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleCreateUser}>
+                            <div className="form-group">
+                                <label>Nome</label>
+                                <input
+                                    type="text"
+                                    value={form.name}
+                                    onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+                                    required
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Usuario</label>
+                                <input
+                                    type="text"
+                                    value={form.username}
+                                    onChange={(event) => setForm((prev) => ({ ...prev, username: event.target.value }))}
+                                    required
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Senha inicial</label>
+                                <input
+                                    type="password"
+                                    value={form.password}
+                                    onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
+                                    minLength={6}
+                                    required
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Perfil</label>
+                                <select
+                                    value={form.role}
+                                    onChange={(event) => setForm((prev) => ({ ...prev, role: event.target.value }))}
+                                >
+                                    {ROLE_OPTIONS.map((roleOption) => (
+                                        <option key={roleOption.value} value={roleOption.value}>{roleOption.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            {createError && <p className="login-error">{createError}</p>}
+                            <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
+                                <UserPlus size={16} />
+                                Criar usuario
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {passwordModalOpen && (
+                <div className="modal-backdrop" role="presentation" onClick={() => setPasswordModalOpen(false)}>
+                    <div className="modal-card admin-modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+                        <div className="modal-header">
+                            <h2>Atualizar senha</h2>
+                            <button type="button" className="icon-btn" onClick={() => setPasswordModalOpen(false)} aria-label="Fechar modal">
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        <p className="text-muted" style={{ marginBottom: '0.8rem' }}>
+                            Usuario: <strong>{passwordTargetUser?.name || '-'}</strong>
+                        </p>
+
+                        <form onSubmit={submitPasswordReset}>
+                            <div className="form-group">
+                                <label>Nova senha</label>
+                                <input
+                                    type="password"
+                                    value={newPassword}
+                                    onChange={(event) => setNewPassword(event.target.value)}
+                                    minLength={6}
+                                    required
+                                />
+                            </div>
+                            {passwordError && <p className="login-error">{passwordError}</p>}
+                            <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
+                                <KeyRound size={16} />
+                                Salvar nova senha
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+export default AdminPanel;

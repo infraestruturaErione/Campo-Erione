@@ -8,16 +8,20 @@ import { emitOSUpdated } from '../events/eventBus';
  * Creates a new OS with specialized business logic.
  * Implements Atomic Transaction pattern (Compensation/Rollback).
  */
-export async function createOS(formData, photos) {
+export async function createOS(formData, photos, currentUser) {
     const osId = uuidv4(); // Unique ID for offline/sync safety
 
     const osData = {
         ...formData,
         id: osId,
+        ownerUserId: currentUser?.id || null,
+        ownerUsername: currentUser?.username || '',
+        ownerName: currentUser?.name || '',
         createdAt: new Date().toISOString(),
         status: formData.status || 'Em andamento',
         statusSync: 'PENDENTE_SYNC',
-        photoIds: []
+        photoIds: [],
+        photosMeta: [],
     };
 
     try {
@@ -26,16 +30,20 @@ export async function createOS(formData, photos) {
 
         // 2. Parallel Photo Storage
         // If this fails, we need to rollback step 1
-        const photoIds = await Promise.all(
+        const photosMeta = await Promise.all(
             photos.map(async (photo) => {
                 const photoId = `${osId}-${uuidv4()}`;
                 await storePhoto(photoId, photo.file);
-                return photoId;
+                return {
+                    id: photoId,
+                    note: String(photo.note || '').trim(),
+                };
             })
         );
 
         // 3. Update OS with photo IDs (Commit-like step)
-        osData.photoIds = photoIds;
+        osData.photoIds = photosMeta.map((item) => item.id);
+        osData.photosMeta = photosMeta;
         saveOS(osData);
 
         // 4. Audit Logging (Event-Driven style soon)

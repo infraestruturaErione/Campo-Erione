@@ -5,7 +5,7 @@ import { createOS } from '../services/osService';
 const DRAFT_KEY = 'appcampo_os_draft_v1';
 
 const INITIAL_FORM_STATE = {
-    responsavelMotiva: 'JONATHAN/Fabio',
+    responsavelMotiva: '',
     responsavelContratada: '',
     obraEquipamento: '',
     horarioInicio: '08:00',
@@ -18,7 +18,7 @@ const INITIAL_FORM_STATE = {
     status: 'Em andamento',
 };
 
-function OSForm({ onSuccess }) {
+function OSForm({ onSuccess, currentUser }) {
     const [loading, setLoading] = useState(false);
     const [step, setStep] = useState(0);
     const [formData, setFormData] = useState(INITIAL_FORM_STATE);
@@ -59,11 +59,12 @@ function OSForm({ onSuccess }) {
                         new Promise((resolve, reject) => {
                             const reader = new FileReader();
                             reader.onload = () =>
-                                resolve({
-                                    id: crypto.randomUUID(),
-                                    preview: reader.result,
-                                    file,
-                                });
+                                    resolve({
+                                        id: crypto.randomUUID(),
+                                        preview: reader.result,
+                                        file,
+                                        note: '',
+                                    });
                             reader.onerror = reject;
                             reader.readAsDataURL(file);
                         })
@@ -86,6 +87,10 @@ function OSForm({ onSuccess }) {
 
     const removePhoto = (photoId) => {
         setPhotos((prev) => prev.filter((photo) => photo.id !== photoId));
+    };
+
+    const handlePhotoNoteChange = (photoId, note) => {
+        setPhotos((prev) => prev.map((photo) => (photo.id === photoId ? { ...photo, note } : photo)));
     };
 
     const handleChange = (event) => {
@@ -137,7 +142,7 @@ function OSForm({ onSuccess }) {
         setLoading(true);
 
         try {
-            await createOS(formData, photos);
+            await createOS(formData, photos, currentUser);
             resetForm();
             onSuccess();
         } catch (error) {
@@ -189,6 +194,14 @@ function OSForm({ onSuccess }) {
                                 <button type="button" className="remove-photo-btn" onClick={() => removePhoto(photo.id)}>
                                     <X size={12} />
                                 </button>
+                                <div className="photo-note-box">
+                                    <textarea
+                                        rows={2}
+                                        value={photo.note || ''}
+                                        onChange={(event) => handlePhotoNoteChange(photo.id, event.target.value)}
+                                        placeholder="Observacao da foto (vai para PDF e Excel)"
+                                    />
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -201,7 +214,13 @@ function OSForm({ onSuccess }) {
                         <div className="form-grid form-grid-2">
                             <div className="form-group">
                                 <label>RESPONSAVEL MOTIVA</label>
-                                <input name="responsavelMotiva" required value={formData.responsavelMotiva} onChange={handleChange} />
+                                <input
+                                    name="responsavelMotiva"
+                                    required
+                                    value={formData.responsavelMotiva}
+                                    onChange={handleChange}
+                                    placeholder="Ex: Jonathan/Fabio"
+                                />
                             </div>
                             <div className="form-group">
                                 <label>RESPONSAVEL CONTRATADA</label>

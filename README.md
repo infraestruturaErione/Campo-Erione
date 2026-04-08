@@ -4,7 +4,9 @@ App web para uso de tecnico em campo: cadastro de OS, fotos, historico e exporta
 
 ## Funcionalidades atuais
 
-- Login local de acesso (`admin/motiva123` e `caio/motiva123` para ambiente dev).
+- Login e sessao com backend dedicado + PostgreSQL (cookie HttpOnly).
+- Cadastro publico removido da tela de login.
+- Painel administrativo interno (aba `Admin`) para gerenciar usuarios cadastrados.
 - Modo campo no formulario (wizard em etapas) com barra de acao fixa.
 - Upload de foto sempre visivel (camera + galeria) em qualquer etapa.
 - Autosave offline de rascunho da OS no navegador.
@@ -37,8 +39,31 @@ App web para uso de tecnico em campo: cadastro de OS, fotos, historico e exporta
 ## Como rodar
 
 1. `npm install`
-2. `npm run dev`
-3. Abrir `http://localhost:5173`
+2. Subir PostgreSQL 18 (local ou remoto).
+3. Criar `.env` a partir de `.env.example`.
+4. Em um terminal: `npm run dev:api`
+5. Em outro terminal: `npm run dev:web`
+6. Abrir `http://localhost:5173`
+
+### Variaveis de ambiente (auth + PostgreSQL)
+
+- `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/appcampo`
+- `AUTH_API_PORT=3001`
+- `AUTH_API_TARGET=http://localhost:3001`
+- `AUTH_COOKIE_NAME=appcampo_sid`
+- `SESSION_TTL_HOURS=24`
+- `PG_SSLMODE=disable`
+
+### Schema de autenticacao
+
+- Arquivo base: `server/sql/001_auth_schema.sql`
+- A API tambem garante criacao automatica de `users`, `auth_sessions` e `os_records` no startup.
+
+### Promover usuario para admin
+
+- Para um usuario ja existente:
+  - `npm run admin:promote -- <username>`
+- Novos usuarios devem ser criados pelo modulo Admin do sistema.
 
 ## Build para WebView mobile
 
@@ -80,8 +105,8 @@ Para voltar ao modo local (`dist`), remova a variavel da sessao:
 
 ## Notas de seguranca para fase com banco
 
-- Trocar token em `localStorage` por cookie `HttpOnly` + `Secure` + `SameSite`.
-- Remover usuarios/senhas hardcoded do `vite.config.js` (usar backend real).
+- Em producao, habilitar HTTPS e `NODE_ENV=production` para cookie `Secure`.
+- Adicionar rate limit em `/api/auth/login` e lock temporario por tentativas.
 - Implementar validacao server-side de todos os campos de OS.
-- Implementar controle de permissao por perfil (ex: tecnico, gestor, admin).
-- Adicionar rate limit e auditoria no backend de autenticacao.
+- Implementar controle de permissao por perfil (ex: tecnico, admin).
+- Adicionar auditoria de auth (login, falha, logout, cadastro).

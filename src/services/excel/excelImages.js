@@ -61,24 +61,30 @@ export const drawPhotos = async (workbook, worksheet, os, startRow, theme) => {
     phCell.border = theme.border.thin;
     worksheet.getRow(startRow).height = 35;
 
-    if (!os.photoIds || os.photoIds.length === 0) return startRow + 1;
+    const photosMeta = Array.isArray(os.photosMeta) && os.photosMeta.length > 0
+        ? os.photosMeta
+        : (os.photoIds || []).map((id) => ({ id, note: '' }));
+
+    if (photosMeta.length === 0) return startRow + 1;
 
     // Parallelized loading for performance
     const photos = await Promise.all(
-        os.photoIds.map(async (id) => {
-            const blob = await getPhoto(id);
+        photosMeta.map(async (item) => {
+            const blob = await getPhoto(item.id);
             if (!blob) return null;
 
             if (blob.type === 'image/png' || blob.type === 'image/jpeg' || blob.type === 'image/jpg') {
                 return {
                     buffer: await blob.arrayBuffer(),
                     extension: blob.type === 'image/png' ? 'png' : 'jpeg',
+                    note: String(item.note || '').trim(),
                 };
             }
 
             return {
                 buffer: await convertBlobToJpegBuffer(blob),
                 extension: 'jpeg',
+                note: String(item.note || '').trim(),
             };
         })
     );
@@ -114,6 +120,13 @@ export const drawPhotos = async (workbook, worksheet, os, startRow, theme) => {
                 worksheet.getRow(r).getCell(c).border = theme.border.thin;
             }
         }
+
+        const noteRow = currentRow + 10;
+        worksheet.mergeCells(noteRow, colRange[0], noteRow, colRange[1]);
+        const noteCell = worksheet.getCell(noteRow, colRange[0]);
+        noteCell.value = `Obs: ${image.note || '-'}`;
+        noteCell.font = { ...theme.font.normal, italic: true, size: 10 };
+        noteCell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
 
         if (!isLeft || i === photos.length - 1) {
             currentRow += 12; // Gap between rows

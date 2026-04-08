@@ -94,6 +94,7 @@ const sendSyncOperation = async (operation) => {
     const response = await fetch(SYNC_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(operation),
     });
 

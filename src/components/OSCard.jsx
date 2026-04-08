@@ -2,7 +2,7 @@ import React from 'react';
 import { OSPhotos } from './OSPhotos';
 import { OSActions } from './OSActions';
 
-export function OSCard({ os }) {
+export function OSCard({ os, showCreator = false }) {
     return (
         <div className="card">
             <div className="os-header">
@@ -19,6 +19,11 @@ export function OSCard({ os }) {
             <p className="sync-status-text">
                 Sync: {os.statusSync || 'PENDENTE_SYNC'}
             </p>
+            {showCreator && (
+                <p className="sync-status-text">
+                    Criado por: {os.ownerName || os.ownerUsername || '-'}
+                </p>
+            )}
 
             <div className="os-grid os-grid-2">
                 <div>
