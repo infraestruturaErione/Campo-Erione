@@ -1,7 +1,7 @@
 import { getOSList, saveOS } from './storage';
 import { logProgress } from './progressLog';
 import { emitOSUpdated } from '../events/eventBus';
-import { buildAuthHeaders, withApiBase } from './apiConfig';
+import { buildAuthHeaders, fetchWithTimeout, withApiBase } from './apiConfig';
 import { getStoredPhotoBlob } from './photoBlob';
 
 const SYNC_QUEUE_KEY = 'appcampo_sync_queue_v1';
@@ -10,9 +10,17 @@ const SYNC_ENDPOINT = import.meta.env.VITE_SYNC_ENDPOINT || withApiBase('/api/sy
 const MEDIA_UPLOAD_ENDPOINT = withApiBase('/api/media/upload');
 let syncInFlight = false;
 
+const safeParse = (value, fallback) => {
+    try {
+        return value ? JSON.parse(value) : fallback;
+    } catch {
+        return fallback;
+    }
+};
+
 const loadQueue = () => {
     const raw = localStorage.getItem(SYNC_QUEUE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    return safeParse(raw, []);
 };
 
 const saveQueue = (queue) => {
@@ -29,9 +37,7 @@ const saveSyncState = (state) => {
 
 export const getSyncState = () => {
     const raw = localStorage.getItem(SYNC_STATE_KEY);
-    return raw
-        ? JSON.parse(raw)
-        : { pending: 0, lastSyncAt: null, lastResult: 'idle', message: '' };
+    return safeParse(raw, { pending: 0, lastSyncAt: null, lastResult: 'idle', message: '' });
 };
 
 export const getPendingSyncCount = () => loadQueue().length;
@@ -94,12 +100,12 @@ export const queueOSDelete = (os) => {
 };
 
 const sendSyncOperation = async (operation) => {
-    const response = await fetch(SYNC_ENDPOINT, {
+    const response = await fetchWithTimeout(SYNC_ENDPOINT, {
         method: 'POST',
         headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify(operation),
-    });
+    }, 15000);
 
     if (!response.ok) {
         throw new Error(`Falha HTTP ${response.status}`);
@@ -113,12 +119,12 @@ const uploadPhotoToBucket = async ({ osId, photoMeta, blob }) => {
     formData.append('file', blob, filename);
     formData.append('osId', osId);
 
-    const response = await fetch(MEDIA_UPLOAD_ENDPOINT, {
+    const response = await fetchWithTimeout(MEDIA_UPLOAD_ENDPOINT, {
         method: 'POST',
         headers: buildAuthHeaders(),
         credentials: 'include',
         body: formData,
-    });
+    }, 30000);
 
     if (!response.ok) {
         throw new Error(`Falha no upload da imagem (HTTP ${response.status})`);

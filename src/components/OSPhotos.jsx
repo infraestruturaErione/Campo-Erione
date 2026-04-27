@@ -49,8 +49,13 @@ export function OSPhotos({ osId, photoIds }) {
 
             <div className="photo-grid">
                 {previews.map((src, idx) => (
-                    <div key={idx} className="photo-preview">
-                        <img src={src} alt="os" onClick={() => window.open(src)} style={{ cursor: 'zoom-in' }} />
+                    <div key={`${osId}-${idx}`} className="photo-preview">
+                        <img
+                            src={src}
+                            alt="os"
+                            onClick={() => window.open(src, '_blank', 'noopener,noreferrer')}
+                            style={{ cursor: 'zoom-in' }}
+                        />
                     </div>
                 ))}
             </div>

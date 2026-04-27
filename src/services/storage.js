@@ -15,9 +15,17 @@ export const initDB = async () => {
 
 export const OS_STORAGE_KEY = 'appcampo_os';
 
+const safeParse = (value, fallback) => {
+    try {
+        return value ? JSON.parse(value) : fallback;
+    } catch {
+        return fallback;
+    }
+};
+
 export const getOSList = () => {
     const data = localStorage.getItem(OS_STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+    return safeParse(data, []);
 };
 
 export const saveOS = (os) => {

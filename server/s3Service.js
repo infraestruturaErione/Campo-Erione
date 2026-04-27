@@ -27,6 +27,12 @@ const sanitizeFileName = (value) =>
         .trim()
         .replace(/[^\w.\-]/g, '_');
 
+const sanitizePathSegment = (value) =>
+    String(value || 'sem-os')
+        .trim()
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .slice(0, 120) || 'sem-os';
+
 const buildObjectUrl = (key) => {
     const base = new URL(endpoint);
     if (forcePathStyle) {
@@ -41,7 +47,8 @@ export const uploadImageToBucket = async ({ buffer, mimeType, originalName, osId
     }
 
     const safeName = sanitizeFileName(originalName);
-    const key = `os/${osId || 'sem-os'}/${randomUUID()}-${safeName}`;
+    const safeOsId = sanitizePathSegment(osId);
+    const key = `os/${safeOsId}/${randomUUID()}-${safeName}`;
 
     await s3.send(
         new PutObjectCommand({

@@ -10,32 +10,42 @@ const normalizePhotoFile = async (file) => {
     return new Blob([bytes], { type: file.type || 'image/jpeg' });
 };
 
-/**
- * Creates a new OS with specialized business logic.
- * Implements Atomic Transaction pattern (Compensation/Rollback).
- */
+const normalizeTextField = (value) => String(value || '').trim();
+
+const normalizeFormData = (formData) => ({
+    ...formData,
+    responsavelMotiva: normalizeTextField(formData.responsavelMotiva),
+    responsavelContratada: normalizeTextField(formData.responsavelContratada),
+    obraEquipamento: normalizeTextField(formData.obraEquipamento),
+    horarioInicio: normalizeTextField(formData.horarioInicio),
+    horarioFim: normalizeTextField(formData.horarioFim),
+    local: normalizeTextField(formData.local),
+    segurancaTrabalho: normalizeTextField(formData.segurancaTrabalho),
+    descricao: normalizeTextField(formData.descricao),
+    ocorrencias: normalizeTextField(formData.ocorrencias),
+    status: normalizeTextField(formData.status) || 'Em andamento',
+});
+
 export async function createOS(formData, photos, currentUser) {
-    const osId = uuidv4(); // Unique ID for offline/sync safety
+    const osId = uuidv4();
+    const normalizedFormData = normalizeFormData(formData);
 
     const osData = {
-        ...formData,
+        ...normalizedFormData,
         id: osId,
         ownerUserId: currentUser?.id || null,
         ownerUsername: currentUser?.username || '',
         ownerName: currentUser?.name || '',
         createdAt: new Date().toISOString(),
-        status: formData.status || 'Em andamento',
+        status: normalizedFormData.status,
         statusSync: 'PENDENTE_SYNC',
         photoIds: [],
         photosMeta: [],
     };
 
     try {
-        // 1. Transaction Start: Save metadata
         saveOS(osData);
 
-        // 2. Parallel Photo Storage
-        // If this fails, we need to rollback step 1
         const photosMeta = await Promise.all(
             photos.map(async (photo) => {
                 const photoId = `${osId}-${uuidv4()}`;
@@ -48,32 +58,22 @@ export async function createOS(formData, photos, currentUser) {
             })
         );
 
-        // 3. Update OS with photo IDs (Commit-like step)
         osData.photoIds = photosMeta.map((item) => item.id);
         osData.photosMeta = photosMeta;
         saveOS(osData);
 
-        // 4. Audit Logging (Event-Driven style soon)
-        await logProgress(
-            'CRIADO',
-            `OS #${osId.slice(0, 8)} - Obra: ${formData.obraEquipamento}`
-        );
+        await logProgress('CRIADO', `OS #${osId.slice(0, 8)} - Obra: ${normalizedFormData.obraEquipamento}`);
 
-        // 5. Queue offline synchronization
         queueOSCreateOrUpdate(osData);
         await syncPendingOperations();
-
-        // 6. Notify observers via Event Bus (Decoupled)
         emitOSUpdated();
 
         return osData;
     } catch (error) {
         console.error('Transaction failed! Rolling back...', error);
-
-        // Transactional Compensation (Rollback)
+        await Promise.allSettled((osData.photoIds || []).map((photoId) => deletePhoto(photoId)));
         deleteOS(osId);
-
-        throw new Error('Falha ao criar relatório. As alterações foram revertidas.');
+        throw new Error('Falha ao criar relatorio. As alteracoes foram revertidas.');
     }
 }
 
@@ -84,10 +84,7 @@ export async function removeOS(os) {
         await Promise.all(photoIds.map((photoId) => deletePhoto(photoId)));
         deleteOS(os.id);
 
-        await logProgress(
-            'EXCLUIDO',
-            `OS #${String(os.id || '').slice(0, 8)} - Obra: ${os.obraEquipamento || '-'}`
-        );
+        await logProgress('EXCLUIDO', `OS #${String(os.id || '').slice(0, 8)} - Obra: ${os.obraEquipamento || '-'}`);
 
         await syncPendingOperations();
         emitOSUpdated();

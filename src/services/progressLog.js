@@ -1,6 +1,7 @@
 const LOG_API = '/api/log';
 const SESSION_BOOT_KEY = 'appcampo_boot_logged_v1';
 let loopCycle = 0;
+const isDev = Boolean(import.meta.env.DEV);
 
 const padCycle = (value) => String(value).padStart(4, '0');
 
@@ -11,6 +12,10 @@ const buildRalphLine = (action, details, phase = 'ACT') => {
 };
 
 export const logProgress = async (action, details, phase = 'ACT') => {
+    if (!isDev) {
+        return;
+    }
+
     const logLine = buildRalphLine(action, details, phase);
 
     try {
@@ -39,6 +44,10 @@ export const logSystemStartup = async () => {
 };
 
 export const getProgress = async () => {
+    if (!isDev) {
+        return '';
+    }
+
     try {
         const response = await fetch(LOG_API);
         if (response.ok) {

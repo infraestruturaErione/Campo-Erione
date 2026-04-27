@@ -29,8 +29,8 @@ const ensureProgressFile = (logPath) => {
     }
 
     const header = [
-        'AppCampo - Ralph Loop Stream',
-        '============================',
+        'Erione Field - Progress Stream',
+        '===============================',
         '# Formato: [timestamp] RALPH_LOOP | cycle=0001 | phase=ACT | action=... | details=...',
         '',
     ].join('\n')
@@ -40,6 +40,20 @@ const ensureProgressFile = (logPath) => {
 
 // https://vitejs.dev/config/
 export default defineConfig({
+    build: {
+        sourcemap: false,
+        minify: 'esbuild',
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    react: ['react', 'react-dom'],
+                    pdf: ['jspdf', 'jspdf-autotable', 'html2canvas'],
+                    excel: ['exceljs'],
+                    capacitor: ['@capacitor/core', '@capacitor/filesystem', '@capacitor/share'],
+                },
+            },
+        },
+    },
     server: {
         proxy: {
             '/api/auth': {

@@ -6,28 +6,64 @@ import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { ensureAuthSchema, pool } from './db.js';
 import { uploadImageToBucket } from './s3Service.js';
+import { sendError, sendSuccess } from './response.js';
 
 const app = express();
 const port = Number(process.env.AUTH_API_PORT || 3001);
 const host = process.env.AUTH_API_HOST || '0.0.0.0';
 const sessionTtlHours = Number(process.env.SESSION_TTL_HOURS || 24);
 const sessionCookieName = process.env.AUTH_COOKIE_NAME || 'appcampo_sid';
+const appBaseUrl = String(process.env.APP_BASE_URL || '').trim().replace(/\/$/, '');
+const isProduction = process.env.NODE_ENV === 'production';
+const loginRateLimitWindowMs = Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
+const loginRateLimitMaxAttempts = Number(process.env.AUTH_RATE_LIMIT_MAX_ATTEMPTS || 8);
 const rawAllowedOrigins = String(process.env.AUTH_ALLOWED_ORIGINS || '')
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
-const defaultAllowedOrigins = [
-    'http://localhost',
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://10.0.2.2:5173',
-    'capacitor://localhost',
-    'ionic://localhost',
-];
-const allowedOrigins = new Set([...defaultAllowedOrigins, ...rawAllowedOrigins]);
+const defaultAllowedOrigins = isProduction
+    ? []
+    : [
+        'http://localhost',
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://10.0.2.2:5173',
+        'capacitor://localhost',
+        'ionic://localhost',
+    ];
+const allowedOrigins = new Set([...defaultAllowedOrigins, ...rawAllowedOrigins, ...(appBaseUrl ? [appBaseUrl] : [])]);
 const isLoopbackOrigin = (origin) => /^http:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?$/.test(origin);
+const loginAttemptStore = new Map();
 
-const isProduction = process.env.NODE_ENV === 'production';
+const osPayloadSchema = z.object({
+    id: z.string().uuid(),
+    responsavelMotiva: z.string().trim().min(1).max(100),
+    responsavelContratada: z.string().trim().min(1).max(100),
+    obraEquipamento: z.string().trim().min(1).max(200),
+    horarioInicio: z.string().trim().min(1).max(10),
+    horarioFim: z.string().trim().min(1).max(10),
+    local: z.string().trim().max(120).optional().default(''),
+    segurancaTrabalho: z.string().trim().max(4000).optional().default(''),
+    descricao: z.string().trim().min(1).max(12000),
+    ocorrencias: z.string().trim().max(4000).optional().default(''),
+    status: z.string().trim().min(2).max(40),
+    ownerUserId: z.string().uuid().nullable().optional(),
+    ownerUsername: z.string().trim().max(64).optional().default(''),
+    ownerName: z.string().trim().max(100).optional().default(''),
+    createdAt: z.string().datetime(),
+    statusSync: z.string().trim().max(40).optional(),
+    photoIds: z.array(z.string().min(1).max(200)).max(40).optional().default([]),
+    photosMeta: z.array(
+        z.object({
+            id: z.string().min(1).max(200),
+            note: z.string().trim().max(500).optional().default(''),
+            objectKey: z.string().trim().max(400).optional(),
+            url: z.string().trim().url().max(1200).optional(),
+            mimeType: z.string().trim().max(120).optional(),
+            size: z.number().int().nonnegative().max(25 * 1024 * 1024).optional(),
+        })
+    ).max(40).optional().default([]),
+});
 
 app.use((req, res, next) => {
     const origin = req.headers.origin;
@@ -42,6 +78,38 @@ app.use((req, res, next) => {
 
     if (req.method === 'OPTIONS') {
         return res.status(204).end();
+    }
+
+    return next();
+});
+
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(self), geolocation=(), microphone=()');
+
+    if (isProduction) {
+        const connectSrc = ["'self'"];
+        if (appBaseUrl) {
+            connectSrc.push(appBaseUrl);
+        }
+
+        res.setHeader(
+            'Content-Security-Policy',
+            [
+                "default-src 'self'",
+                "base-uri 'self'",
+                "frame-ancestors 'none'",
+                "object-src 'none'",
+                "script-src 'self'",
+                "style-src 'self' 'unsafe-inline'",
+                "img-src 'self' data: blob: https:",
+                "font-src 'self' data:",
+                `connect-src ${connectSrc.join(' ')} https:`,
+                "form-action 'self'",
+            ].join('; ')
+        );
     }
 
     return next();
@@ -80,11 +148,18 @@ const adminUpdateUserSchema = z.object({
     password: z.string().min(6).max(128).optional(),
 });
 
-const syncOperationSchema = z.object({
-    type: z.enum(['UPSERT', 'DELETE']),
-    osId: z.string().min(1).max(120),
-    payload: z.any().optional(),
-});
+const syncOperationSchema = z.discriminatedUnion('type', [
+    z.object({
+        type: z.literal('UPSERT'),
+        osId: z.string().min(1).max(120),
+        payload: osPayloadSchema,
+    }),
+    z.object({
+        type: z.literal('DELETE'),
+        osId: z.string().min(1).max(120),
+        payload: z.object({ id: z.string().min(1).max(120) }).optional(),
+    }),
+]);
 
 const statusUpdateSchema = z.object({
     status: z.string().trim().min(3).max(40),
@@ -98,6 +173,40 @@ const toSafeUser = (row) => ({
     isActive: row.is_active,
     createdAt: row.created_at,
 });
+
+const getClientIp = (req) => {
+    const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    return forwarded || req.socket?.remoteAddress || 'unknown';
+};
+
+const cleanupExpiredLoginAttempts = () => {
+    const now = Date.now();
+    for (const [key, entry] of loginAttemptStore.entries()) {
+        if (entry.resetAt <= now) {
+            loginAttemptStore.delete(key);
+        }
+    }
+};
+
+const consumeLoginAttempt = (key) => {
+    cleanupExpiredLoginAttempts();
+    const now = Date.now();
+    const current = loginAttemptStore.get(key);
+
+    if (!current || current.resetAt <= now) {
+        const next = { attempts: 1, resetAt: now + loginRateLimitWindowMs };
+        loginAttemptStore.set(key, next);
+        return next;
+    }
+
+    current.attempts += 1;
+    loginAttemptStore.set(key, current);
+    return current;
+};
+
+const clearLoginAttempt = (key) => {
+    loginAttemptStore.delete(key);
+};
 
 const setSessionCookie = (res, sessionId, expiresAt) => {
     res.cookie(sessionCookieName, sessionId, {
@@ -113,7 +222,7 @@ const clearSessionCookie = (res) => {
     res.clearCookie(sessionCookieName, {
         httpOnly: true,
         secure: isProduction,
-        sameSite: 'lax',
+        sameSite: 'strict',
         path: '/',
     });
 };
@@ -156,13 +265,13 @@ const requireAuth = async (req, res, next) => {
         const user = await resolveCurrentUser(req);
         if (!user) {
             clearSessionCookie(res);
-            return res.status(401).json({ error: 'Sessao invalida' });
+            return sendError(res, 401, 'Sessao invalida');
         }
         req.user = user;
         return next();
     } catch (error) {
         console.error('Erro ao validar autenticacao', error);
-        return res.status(500).json({ error: 'Falha ao validar autenticacao' });
+        return sendError(res, 500, 'Falha ao validar autenticacao');
     }
 };
 
@@ -171,34 +280,39 @@ const requireAdmin = async (req, res, next) => {
         const user = await resolveCurrentUser(req);
         if (!user) {
             clearSessionCookie(res);
-            return res.status(401).json({ error: 'Sessao invalida' });
+            return sendError(res, 401, 'Sessao invalida');
         }
         if (user.role !== 'admin') {
-            return res.status(403).json({ error: 'Acesso restrito para administradores' });
+            return sendError(res, 403, 'Acesso restrito para administradores');
         }
         req.user = user;
         return next();
     } catch (error) {
         console.error('Erro ao validar admin', error);
-        return res.status(500).json({ error: 'Falha ao validar permissao' });
+        return sendError(res, 500, 'Falha ao validar permissao');
     }
 };
 
 app.get('/api/health', (_req, res) => {
-    res.status(200).json({ ok: true });
+    return sendSuccess(res, { service: 'auth-api' });
 });
 
 app.post('/api/auth/register', (_req, res) => {
-    return res.status(403).json({ error: 'Cadastro direto desabilitado. Solicite acesso ao administrador.' });
+    return sendError(res, 403, 'Cadastro direto desabilitado. Solicite acesso ao administrador.');
 });
 
 app.post('/api/auth/login', async (req, res) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
-        return res.status(400).json({ error: 'Dados invalidos' });
+        return sendError(res, 400, 'Dados invalidos');
     }
 
     const { username, password } = parsed.data;
+    const loginAttemptKey = `${username.toLowerCase()}::${getClientIp(req)}`;
+    const existingAttempt = loginAttemptStore.get(loginAttemptKey);
+    if (existingAttempt && existingAttempt.attempts >= loginRateLimitMaxAttempts && existingAttempt.resetAt > Date.now()) {
+        return sendError(res, 429, 'Muitas tentativas de login. Aguarde alguns minutos e tente novamente.');
+    }
 
     try {
         const result = await pool.query(
@@ -210,29 +324,32 @@ app.post('/api/auth/login', async (req, res) => {
         );
 
         if (result.rowCount === 0) {
-            return res.status(401).json({ error: 'Usuario ou senha invalidos' });
+            consumeLoginAttempt(loginAttemptKey);
+            return sendError(res, 401, 'Usuario ou senha invalidos');
         }
 
         const user = result.rows[0];
         if (!user.is_active) {
-            return res.status(403).json({ error: 'Usuario inativo' });
+            return sendError(res, 403, 'Usuario inativo');
         }
 
         const validPassword = await bcrypt.compare(password, user.password_hash);
         if (!validPassword) {
-            return res.status(401).json({ error: 'Usuario ou senha invalidos' });
+            consumeLoginAttempt(loginAttemptKey);
+            return sendError(res, 401, 'Usuario ou senha invalidos');
         }
 
+        clearLoginAttempt(loginAttemptKey);
         const session = await createSession(user.id);
         setSessionCookie(res, session.sessionId, session.expiresAt);
 
-        return res.status(200).json({
+        return sendSuccess(res, {
             user: toSafeUser(user),
             sessionId: session.sessionId,
         });
     } catch (error) {
         console.error('Erro no login', error);
-        return res.status(500).json({ error: 'Falha ao autenticar' });
+        return sendError(res, 500, 'Falha ao autenticar');
     }
 });
 
@@ -241,30 +358,30 @@ app.get('/api/auth/session', async (req, res) => {
         const user = await resolveCurrentUser(req);
         if (!user) {
             clearSessionCookie(res);
-            return res.status(401).json({ error: 'Sessao invalida' });
+            return sendError(res, 401, 'Sessao invalida');
         }
 
-        return res.status(200).json({ user: toSafeUser(user) });
+        return sendSuccess(res, { user: toSafeUser(user) });
     } catch (error) {
         console.error('Erro ao validar sessao', error);
-        return res.status(500).json({ error: 'Falha ao validar sessao' });
+        return sendError(res, 500, 'Falha ao validar sessao');
     }
 });
 
 app.post('/api/auth/logout', async (req, res) => {
-    const sessionId = req.cookies?.[sessionCookieName];
+    const sessionId = req.cookies?.[sessionCookieName] || req.get('x-session-id');
     clearSessionCookie(res);
 
     if (!sessionId) {
-        return res.status(200).json({ ok: true });
+        return sendSuccess(res);
     }
 
     try {
         await pool.query(`DELETE FROM auth_sessions WHERE id = $1`, [sessionId]);
-        return res.status(200).json({ ok: true });
+        return sendSuccess(res);
     } catch (error) {
         console.error('Erro no logout', error);
-        return res.status(500).json({ error: 'Falha no logout' });
+        return sendError(res, 500, 'Falha no logout');
     }
 });
 
@@ -286,17 +403,17 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
                 return haystack.includes(search);
             });
 
-        return res.status(200).json({ items });
+        return sendSuccess(res, { items });
     } catch (error) {
         console.error('Erro ao listar usuarios', error);
-        return res.status(500).json({ error: 'Falha ao carregar usuarios' });
+        return sendError(res, 500, 'Falha ao carregar usuarios');
     }
 });
 
 app.post('/api/admin/users', requireAdmin, async (req, res) => {
     const parsed = adminCreateUserSchema.safeParse(req.body);
     if (!parsed.success) {
-        return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Dados invalidos' });
+        return sendError(res, 400, parsed.error.issues[0]?.message || 'Dados invalidos');
     }
 
     const { name, username, password, role } = parsed.data;
@@ -309,7 +426,7 @@ app.post('/api/admin/users', requireAdmin, async (req, res) => {
         );
 
         if (existing.rowCount > 0) {
-            return res.status(409).json({ error: 'Usuario ja cadastrado' });
+            return sendError(res, 409, 'Usuario ja cadastrado');
         }
 
         const passwordHash = await bcrypt.hash(password, 12);
@@ -319,10 +436,10 @@ app.post('/api/admin/users', requireAdmin, async (req, res) => {
             [randomUUID(), name, normalizedUsername, passwordHash, role]
         );
 
-        return res.status(201).json({ ok: true });
+        return sendSuccess(res, {}, 201);
     } catch (error) {
         console.error('Erro ao criar usuario', error);
-        return res.status(500).json({ error: 'Falha ao criar usuario' });
+        return sendError(res, 500, 'Falha ao criar usuario');
     }
 });
 
@@ -331,7 +448,7 @@ app.patch('/api/admin/users/:userId', requireAdmin, async (req, res) => {
     const parsed = adminUpdateUserSchema.safeParse(req.body);
 
     if (!parsed.success || Object.keys(parsed.data).length === 0) {
-        return res.status(400).json({ error: 'Atualizacao invalida' });
+        return sendError(res, 400, 'Atualizacao invalida');
     }
 
     try {
@@ -341,11 +458,11 @@ app.patch('/api/admin/users/:userId', requireAdmin, async (req, res) => {
         );
 
         if (existing.rowCount === 0) {
-            return res.status(404).json({ error: 'Usuario nao encontrado' });
+            return sendError(res, 404, 'Usuario nao encontrado');
         }
 
         if (req.user.id === userId && parsed.data.isActive === false) {
-            return res.status(400).json({ error: 'Nao e permitido desativar o proprio usuario admin' });
+            return sendError(res, 400, 'Nao e permitido desativar o proprio usuario admin');
         }
 
         const updates = [];
@@ -382,10 +499,10 @@ app.patch('/api/admin/users/:userId', requireAdmin, async (req, res) => {
             values
         );
 
-        return res.status(200).json({ ok: true });
+        return sendSuccess(res);
     } catch (error) {
         console.error('Erro ao atualizar usuario', error);
-        return res.status(500).json({ error: 'Falha ao atualizar usuario' });
+        return sendError(res, 500, 'Falha ao atualizar usuario');
     }
 });
 
@@ -399,27 +516,27 @@ app.delete('/api/admin/users/:userId', requireAdmin, async (req, res) => {
         );
 
         if (existing.rowCount === 0) {
-            return res.status(404).json({ error: 'Usuario nao encontrado' });
+            return sendError(res, 404, 'Usuario nao encontrado');
         }
 
         if (req.user.id === userId) {
-            return res.status(400).json({ error: 'Nao e permitido excluir o proprio usuario admin' });
+            return sendError(res, 400, 'Nao e permitido excluir o proprio usuario admin');
         }
 
         await pool.query(`DELETE FROM auth_sessions WHERE user_id = $1`, [userId]);
         await pool.query(`DELETE FROM users WHERE id = $1`, [userId]);
 
-        return res.status(200).json({ ok: true });
+        return sendSuccess(res);
     } catch (error) {
         console.error('Erro ao excluir usuario', error);
-        return res.status(500).json({ error: 'Falha ao excluir usuario' });
+        return sendError(res, 500, 'Falha ao excluir usuario');
     }
 });
 
 app.post('/api/sync/os', requireAuth, async (req, res) => {
     const parsed = syncOperationSchema.safeParse(req.body);
     if (!parsed.success) {
-        return res.status(400).json({ error: 'Operacao de sync invalida' });
+        return sendError(res, 400, 'Operacao de sync invalida');
     }
 
     const operation = parsed.data;
@@ -449,10 +566,10 @@ app.post('/api/sync/os', requireAuth, async (req, res) => {
             );
         }
 
-        return res.status(200).json({ ok: true });
+        return sendSuccess(res);
     } catch (error) {
         console.error('Erro no sync de OS', error);
-        return res.status(500).json({ error: 'Falha ao sincronizar OS' });
+        return sendError(res, 500, 'Falha ao sincronizar OS');
     }
 });
 
@@ -461,11 +578,11 @@ app.post('/api/media/upload', requireAuth, upload.single('file'), async (req, re
     const osId = String(req.body?.osId || '');
 
     if (!file) {
-        return res.status(400).json({ error: 'Arquivo de imagem obrigatorio' });
+        return sendError(res, 400, 'Arquivo de imagem obrigatorio');
     }
 
     if (!String(file.mimetype || '').startsWith('image/')) {
-        return res.status(400).json({ error: 'Somente imagem pode ser enviada' });
+        return sendError(res, 400, 'Somente imagem pode ser enviada');
     }
 
     try {
@@ -476,15 +593,15 @@ app.post('/api/media/upload', requireAuth, upload.single('file'), async (req, re
             osId,
         });
 
-        return res.status(201).json({
+        return sendSuccess(res, {
             objectKey: uploaded.objectKey,
             url: uploaded.url,
             mimeType: file.mimetype,
             size: file.size,
-        });
+        }, 201);
     } catch (error) {
         console.error('Erro ao enviar imagem para bucket', error);
-        return res.status(500).json({ error: 'Falha ao enviar imagem' });
+        return sendError(res, 500, 'Falha ao enviar imagem');
     }
 });
 
@@ -523,10 +640,10 @@ app.get('/api/admin/os', requireAdmin, async (req, res) => {
                 return haystack.includes(search);
             });
 
-        return res.status(200).json({ items: normalized });
+        return sendSuccess(res, { items: normalized });
     } catch (error) {
         console.error('Erro ao listar OS para admin', error);
-        return res.status(500).json({ error: 'Falha ao carregar OS' });
+        return sendError(res, 500, 'Falha ao carregar OS');
     }
 });
 
@@ -534,7 +651,7 @@ app.patch('/api/admin/os/:osId/status', requireAdmin, async (req, res) => {
     const osId = String(req.params.osId || '');
     const parsed = statusUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
-        return res.status(400).json({ error: 'Status invalido' });
+        return sendError(res, 400, 'Status invalido');
     }
 
     try {
@@ -544,7 +661,7 @@ app.patch('/api/admin/os/:osId/status', requireAdmin, async (req, res) => {
         );
 
         if (selected.rowCount === 0) {
-            return res.status(404).json({ error: 'OS nao encontrada' });
+            return sendError(res, 404, 'OS nao encontrada');
         }
 
         const payload = selected.rows[0].payload || {};
@@ -558,16 +675,28 @@ app.patch('/api/admin/os/:osId/status', requireAdmin, async (req, res) => {
             [osId, JSON.stringify(payload)]
         );
 
-        return res.status(200).json({ ok: true });
+        return sendSuccess(res);
     } catch (error) {
         console.error('Erro ao atualizar status da OS', error);
-        return res.status(500).json({ error: 'Falha ao atualizar status' });
+        return sendError(res, 500, 'Falha ao atualizar status');
     }
+});
+
+app.use((error, _req, res, _next) => {
+    if (error instanceof SyntaxError && 'body' in error) {
+        return sendError(res, 400, 'JSON invalido na requisicao');
+    }
+
+    if (error instanceof multer.MulterError) {
+        return sendError(res, 400, 'Falha no upload do arquivo');
+    }
+
+    console.error('Erro nao tratado na API', error);
+    return sendError(res, 500, 'Erro interno do servidor');
 });
 
 const start = async () => {
     await ensureAuthSchema();
-    await pool.query(`UPDATE users SET role = 'technician' WHERE role NOT IN ('admin', 'technician')`);
     app.listen(port, host, () => {
         console.log(`[auth-api] running on http://${host}:${port}`);
     });

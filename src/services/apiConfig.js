@@ -20,7 +20,7 @@ const isCapacitorScheme = () => {
 };
 
 // For Android emulators, host machine localhost is mapped to 10.0.2.2.
-const defaultNativeApiBase = (isAndroidNative() || isCapacitorScheme()) ? 'http://10.0.2.2:3001' : '';
+const defaultNativeApiBase = import.meta.env.DEV && (isAndroidNative() || isCapacitorScheme()) ? 'http://10.0.2.2:3001' : '';
 
 export const API_BASE = envApiBase || defaultNativeApiBase;
 const SESSION_STORAGE_KEY = 'appcampo_session_id';
@@ -35,17 +35,20 @@ export const withApiBase = (path) => {
 };
 
 export const getStoredSessionId = () => {
+    if (!isNativeApiRuntime) return '';
     if (typeof localStorage === 'undefined') return '';
     return String(localStorage.getItem(SESSION_STORAGE_KEY) || '').trim();
 };
 
 export const saveSessionId = (sessionId) => {
+    if (!isNativeApiRuntime) return;
     if (typeof localStorage === 'undefined') return;
     if (!sessionId) return;
     localStorage.setItem(SESSION_STORAGE_KEY, String(sessionId));
 };
 
 export const clearSessionId = () => {
+    if (!isNativeApiRuntime) return;
     if (typeof localStorage === 'undefined') return;
     localStorage.removeItem(SESSION_STORAGE_KEY);
 };

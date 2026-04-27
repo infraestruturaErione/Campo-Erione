@@ -31,3 +31,17 @@ CREATE TABLE IF NOT EXISTS os_records (
 
 CREATE INDEX IF NOT EXISTS idx_os_records_updated_at
 ON os_records(updated_at DESC);
+
+UPDATE users SET role = 'technician' WHERE role NOT IN ('admin', 'technician');
+
+ALTER TABLE users
+DROP CONSTRAINT IF EXISTS users_role_check;
+
+ALTER TABLE users
+ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'technician'));
+
+CREATE INDEX IF NOT EXISTS idx_os_records_deleted_updated
+ON os_records(deleted_at, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_os_records_submitted_by
+ON os_records(submitted_by);

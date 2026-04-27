@@ -1,4 +1,4 @@
-import { buildAuthHeaders, withApiBase } from './apiConfig';
+import { buildAuthHeaders, fetchWithTimeout, withApiBase } from './apiConfig';
 
 const ADMIN_BASE = withApiBase('/api/admin');
 
@@ -23,10 +23,10 @@ export const fetchAdminUsers = async ({ search = '' } = {}) => {
     const query = new URLSearchParams();
     if (search) query.set('search', search);
 
-    const response = await fetch(`${ADMIN_BASE}/users?${query.toString()}`, {
+    const response = await fetchWithTimeout(`${ADMIN_BASE}/users?${query.toString()}`, {
         headers: buildAuthHeaders(),
         credentials: 'include',
-    });
+    }, 10000);
 
     if (!response.ok) {
         throw new Error(await parseError(response));
@@ -37,12 +37,12 @@ export const fetchAdminUsers = async ({ search = '' } = {}) => {
 };
 
 export const createAdminUser = async ({ name, username, password, role }) => {
-    const response = await fetch(`${ADMIN_BASE}/users`, {
+    const response = await fetchWithTimeout(`${ADMIN_BASE}/users`, {
         method: 'POST',
         headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify({ name, username, password, role }),
-    });
+    }, 12000);
 
     if (!response.ok) {
         throw new Error(await parseError(response));
@@ -50,12 +50,12 @@ export const createAdminUser = async ({ name, username, password, role }) => {
 };
 
 export const updateAdminUser = async (userId, payload) => {
-    const response = await fetch(`${ADMIN_BASE}/users/${userId}`, {
+    const response = await fetchWithTimeout(`${ADMIN_BASE}/users/${userId}`, {
         method: 'PATCH',
         headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify(payload),
-    });
+    }, 12000);
 
     if (!response.ok) {
         throw new Error(await parseError(response));
@@ -63,11 +63,11 @@ export const updateAdminUser = async (userId, payload) => {
 };
 
 export const deleteAdminUser = async (userId) => {
-    const response = await fetch(`${ADMIN_BASE}/users/${userId}`, {
+    const response = await fetchWithTimeout(`${ADMIN_BASE}/users/${userId}`, {
         method: 'DELETE',
         headers: buildAuthHeaders(),
         credentials: 'include',
-    });
+    }, 10000);
 
     if (!response.ok) {
         throw new Error(await parseError(response));
