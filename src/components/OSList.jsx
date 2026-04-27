@@ -68,7 +68,13 @@ function OSList({ currentUser }) {
 
     return (
         <div>
-            <h2 style={{ marginBottom: '1.5rem' }}>Historico de Atendimentos</h2>
+            <div className="section-heading">
+                <div>
+                    <p className="section-eyebrow">Central de relatorios</p>
+                    <h2>Historico de Atendimentos</h2>
+                </div>
+                <p className="text-muted">Consulte, exporte e acompanhe os registros tecnicos da operacao.</p>
+            </div>
 
             <div className="history-toolbar">
                 <input

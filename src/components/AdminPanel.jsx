@@ -12,6 +12,8 @@ import {
     UserX,
 } from 'lucide-react';
 import { createAdminUser, deleteAdminUser, fetchAdminUsers, updateAdminUser } from '../services/adminService';
+import { useToast } from './ui/ToastProvider';
+import ConfirmDialog from './ui/ConfirmDialog';
 
 const ROLE_OPTIONS = [
     { value: 'technician', label: 'Tecnico' },
@@ -21,6 +23,7 @@ const ROLE_OPTIONS = [
 const PAGE_SIZE = 10;
 
 function AdminPanel() {
+    const toast = useToast();
     const [users, setUsers] = useState([]);
     const [search, setSearch] = useState('');
     const [roleFilter, setRoleFilter] = useState('all');
@@ -43,6 +46,7 @@ function AdminPanel() {
     const [newPassword, setNewPassword] = useState('');
     const [passwordError, setPasswordError] = useState('');
     const [page, setPage] = useState(1);
+    const [deleteTargetUser, setDeleteTargetUser] = useState(null);
 
     const loadUsers = async (nextSearch = search) => {
         setLoading(true);
@@ -108,6 +112,7 @@ function AdminPanel() {
             setCreateModalOpen(false);
             await loadUsers();
             setPage(1);
+            toast.success('Usuario criado com sucesso.', 'Painel admin');
         } catch (createRequestError) {
             setCreateError(createRequestError.message || 'Nao foi possivel criar usuario');
         }
@@ -118,27 +123,24 @@ function AdminPanel() {
         try {
             await updateAdminUser(userId, payload);
             await loadUsers();
+            toast.success('Usuario atualizado com sucesso.', 'Painel admin');
         } catch (updateError) {
-            alert(updateError.message || 'Nao foi possivel atualizar usuario');
+            toast.error(updateError.message || 'Nao foi possivel atualizar usuario', 'Painel admin');
         } finally {
             setSavingUserId('');
         }
     };
 
     const handleDeleteUser = async (user) => {
-        const shouldDelete = window.confirm(
-            `Excluir usuario ${user.name} (@${user.username})?\n\nO historico de OS sera mantido no painel admin.`
-        );
-
-        if (!shouldDelete) return;
-
         setSavingUserId(user.id);
         try {
             await deleteAdminUser(user.id);
             await loadUsers();
             setPage(1);
+            setDeleteTargetUser(null);
+            toast.success('Usuario excluido com sucesso.', 'Painel admin');
         } catch (deleteError) {
-            alert(deleteError.message || 'Nao foi possivel excluir usuario');
+            toast.error(deleteError.message || 'Nao foi possivel excluir usuario', 'Painel admin');
         } finally {
             setSavingUserId('');
         }
@@ -172,6 +174,7 @@ function AdminPanel() {
             setPasswordTargetUser(null);
             setNewPassword('');
             await loadUsers();
+            toast.success('Senha redefinida com sucesso.', 'Painel admin');
         } catch (resetError) {
             setPasswordError(resetError.message || 'Nao foi possivel atualizar a senha');
         } finally {
@@ -185,7 +188,7 @@ function AdminPanel() {
                 <div>
                     <p className="admin-eyebrow">Painel de Controle</p>
                     <h2>Dashboard de Usuarios</h2>
-                    <p className="text-muted">Governanca de acessos, seguranca operacional e visibilidade executiva em tempo real.</p>
+                    <p className="text-muted">Gestao de acessos internos e controle de perfis em um unico painel.</p>
                 </div>
                 <div className="admin-hero-actions">
                     <button
@@ -302,10 +305,17 @@ function AdminPanel() {
                 )}
 
                 {loading ? (
-                    <p className="text-muted">Carregando usuarios...</p>
+                    <div className="app-state-card admin-inline-state">
+                        <div className="app-state-spinner animate-spin" />
+                        <div>
+                            <h3>Atualizando painel de usuarios</h3>
+                            <p className="text-muted">Buscando perfis, status e permissoes cadastradas.</p>
+                        </div>
+                    </div>
                 ) : filteredUsers.length === 0 ? (
-                    <div className="card" style={{ margin: 0 }}>
-                        Nenhum usuario cadastrado.
+                    <div className="empty-state-card">
+                        <strong>Nenhum usuario encontrado.</strong>
+                        Ajuste os filtros ou crie um novo acesso para a equipe.
                     </div>
                 ) : (
                     <div className="admin-table">
@@ -319,17 +329,21 @@ function AdminPanel() {
 
                         {paginatedUsers.map((user) => (
                             <div key={user.id} className="admin-table-row">
-                                <div className="admin-user-title-row">
-                                    <div className="admin-user-avatar">
-                                        {user.role === 'admin' ? <Shield size={16} /> : <UserCircle2 size={16} />}
-                                    </div>
-                                    <div>
-                                        <h3>{user.name}</h3>
-                                        <span className="text-muted">@{user.username}</span>
+                                <div className="admin-cell">
+                                    <span className="admin-cell-label">Usuario</span>
+                                    <div className="admin-user-title-row">
+                                        <div className="admin-user-avatar">
+                                            {user.role === 'admin' ? <Shield size={16} /> : <UserCircle2 size={16} />}
+                                        </div>
+                                        <div>
+                                            <h3>{user.name}</h3>
+                                            <span className="text-muted">@{user.username}</span>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div>
+                                <div className="admin-cell">
+                                    <span className="admin-cell-label">Perfil</span>
                                     <select
                                         value={user.role}
                                         onChange={(event) => handleUserUpdate(user.id, { role: event.target.value })}
@@ -341,45 +355,53 @@ function AdminPanel() {
                                     </select>
                                 </div>
 
-                                <div className="admin-user-status-row">
-                                    <span className={`badge ${user.isActive ? 'badge-done' : 'badge-pending'}`}>
-                                        {user.isActive ? 'Ativo' : 'Inativo'}
-                                    </span>
-                                    <button
-                                        type="button"
-                                        className="btn"
-                                        onClick={() => handleUserUpdate(user.id, { isActive: !user.isActive })}
-                                        disabled={savingUserId === user.id}
-                                        style={{ background: user.isActive ? '#7f1d1d' : '#14532d', color: '#fff', padding: '0.45rem 0.75rem' }}
-                                    >
-                                        {user.isActive ? 'Desativar' : 'Ativar'}
-                                    </button>
+                                <div className="admin-cell">
+                                    <span className="admin-cell-label">Status</span>
+                                    <div className="admin-user-status-row">
+                                        <span className={`admin-status-pill ${user.isActive ? 'is-active' : 'is-inactive'}`}>
+                                            {user.isActive ? 'Ativo' : 'Inativo'}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            className="btn admin-status-btn"
+                                            onClick={() => handleUserUpdate(user.id, { isActive: !user.isActive })}
+                                            disabled={savingUserId === user.id}
+                                        >
+                                            {user.isActive ? 'Desativar' : 'Ativar'}
+                                        </button>
+                                    </div>
                                 </div>
 
-                                <div className="admin-user-actions-row">
-                                    <button
-                                        type="button"
-                                        className="btn"
-                                        style={{ background: '#075985', color: '#fff', padding: '0.45rem 0.75rem' }}
-                                        onClick={() => openResetPassword(user)}
-                                        disabled={savingUserId === user.id}
-                                    >
-                                        <KeyRound size={16} />
-                                        Senha
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="btn"
-                                        style={{ background: '#991b1b', color: '#fff', padding: '0.45rem 0.75rem' }}
-                                        onClick={() => handleDeleteUser(user)}
-                                        disabled={savingUserId === user.id}
-                                    >
-                                        <Trash2 size={16} />
-                                        Excluir
-                                    </button>
+                                <div className="admin-cell">
+                                    <span className="admin-cell-label">Acoes</span>
+                                    <div className="admin-user-actions-row">
+                                        <button
+                                            type="button"
+                                            className="btn"
+                                            style={{ background: '#075985', color: '#fff', padding: '0.45rem 0.75rem' }}
+                                            onClick={() => openResetPassword(user)}
+                                            disabled={savingUserId === user.id}
+                                        >
+                                            <KeyRound size={16} />
+                                            Senha
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="btn"
+                                            style={{ background: '#991b1b', color: '#fff', padding: '0.45rem 0.75rem' }}
+                                            onClick={() => setDeleteTargetUser(user)}
+                                            disabled={savingUserId === user.id}
+                                        >
+                                            <Trash2 size={16} />
+                                            Excluir
+                                        </button>
+                                    </div>
                                 </div>
 
-                                <p className="text-muted">{new Date(user.createdAt).toLocaleString('pt-BR')}</p>
+                                <div className="admin-cell">
+                                    <span className="admin-cell-label">Criado em</span>
+                                    <p className="text-muted">{new Date(user.createdAt).toLocaleString('pt-BR')}</p>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -502,6 +524,25 @@ function AdminPanel() {
                     </div>
                 </div>
             )}
+
+            <ConfirmDialog
+                open={Boolean(deleteTargetUser)}
+                title="Excluir acesso deste usuario?"
+                message="A conta sera removida do painel, mas o historico operacional permanece preservado."
+                confirmLabel="Excluir usuario"
+                cancelLabel="Manter usuario"
+                loading={savingUserId === deleteTargetUser?.id}
+                onCancel={() => setDeleteTargetUser(null)}
+                onConfirm={() => deleteTargetUser && handleDeleteUser(deleteTargetUser)}
+            >
+                {deleteTargetUser ? (
+                    <div className="confirm-dialog-user-card">
+                        <strong>{deleteTargetUser.name}</strong>
+                        <span>@{deleteTargetUser.username}</span>
+                        <span>{deleteTargetUser.role === 'admin' ? 'Administrador' : 'Tecnico'}</span>
+                    </div>
+                ) : null}
+            </ConfirmDialog>
         </div>
     );
 }

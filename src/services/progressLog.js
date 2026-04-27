@@ -35,7 +35,7 @@ export const logSystemStartup = async () => {
     }
 
     sessionStorage.setItem(SESSION_BOOT_KEY, '1');
-    await logProgress('SISTEMA', 'AppCampo inicializado', 'BOOT');
+    await logProgress('SISTEMA', 'Erione Field inicializado', 'BOOT');
 };
 
 export const getProgress = async () => {
@@ -49,3 +49,4 @@ export const getProgress = async () => {
     }
     return '';
 };
+

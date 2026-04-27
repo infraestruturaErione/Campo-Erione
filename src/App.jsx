@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LogOut, PlusCircle, History, RefreshCcw, CloudOff, Shield } from 'lucide-react';
+import { LogOut, PlusCircle, History, RefreshCcw, CloudOff, Shield, Cloud, CheckCircle2, AlertTriangle } from 'lucide-react';
 import OSForm from './components/OSForm';
 import OSList from './components/OSList';
 import AdminPanel from './components/AdminPanel';
@@ -8,8 +8,10 @@ import { getSession, login, logout } from './services/authService';
 import { logProgress, logSystemStartup } from './services/progressLog';
 import { getSyncState, syncPendingOperations } from './services/syncService';
 import { subscribe, EVENTS } from './events/eventBus';
+import { useToast } from './components/ui/ToastProvider';
 
 function App() {
+    const toast = useToast();
     const [activeTab, setActiveTab] = useState('nova');
     const [currentUser, setCurrentUser] = useState(null);
     const [authLoading, setAuthLoading] = useState(true);
@@ -45,11 +47,13 @@ function App() {
             await syncPendingOperations();
             refreshSyncState();
             setSyncing(false);
+            toast.success('Conexao restabelecida e fila sincronizada.', 'Online');
         };
 
         const handleOffline = () => {
             setIsOnline(false);
             refreshSyncState();
+            toast.info('O app entrou em modo offline. Novos registros serao guardados localmente.', 'Modo offline');
         };
 
         window.addEventListener('online', handleOnline);
@@ -88,6 +92,7 @@ function App() {
             setCurrentUser(user);
             setActiveTab(user?.role === 'admin' ? 'admin' : 'nova');
             await logProgress('AUTH', `Login aprovado para ${user.name}`, 'CHECK');
+            toast.success(`Bem-vindo, ${user?.name || user?.username || 'equipe'}.`, 'Acesso liberado');
         } finally {
             setLoginLoading(false);
         }
@@ -98,19 +103,60 @@ function App() {
         setCurrentUser(null);
         setActiveTab('nova');
         await logProgress('AUTH', 'Logout executado', 'ACT');
+        toast.info('Sessao encerrada com seguranca.', 'Saida concluida');
     };
 
     const handleSyncNow = async () => {
         setSyncing(true);
         await syncPendingOperations();
-        setSyncState(getSyncState());
+        const nextState = getSyncState();
+        setSyncState(nextState);
         setSyncing(false);
+        if (nextState.lastResult === 'success') {
+            toast.success('Fila sincronizada com sucesso.', 'Sincronizacao');
+        } else if (nextState.lastResult === 'error') {
+            toast.error(nextState.message || 'Falha ao sincronizar a fila offline.', 'Sincronizacao');
+        } else if (nextState.lastResult === 'offline') {
+            toast.info('Sem internet para sincronizar agora.', 'Sincronizacao');
+        }
     };
+
+    const syncToneClass = !isOnline
+        ? 'is-offline'
+        : syncState.lastResult === 'error'
+            ? 'is-warning'
+            : syncState.pending > 0 || syncing
+                ? 'is-pending'
+                : 'is-success';
+
+    const syncMessage = !isOnline
+        ? 'Modo offline ativo. Seus registros continuam seguros no dispositivo.'
+        : syncing
+            ? 'Sincronizando dados com o servidor...'
+            : syncState.lastResult === 'error'
+                ? (syncState.message || 'Falha recente na sincronizacao. Tente novamente.')
+                : syncState.pending > 0
+                    ? `${syncState.pending} item(ns) aguardando envio para a nuvem.`
+                    : `Tudo em dia. Ultima sincronizacao ${syncState.lastSyncAt ? new Date(syncState.lastSyncAt).toLocaleTimeString('pt-BR') : 'nao registrada'}.`;
+
+    const SyncStatusIcon = !isOnline
+        ? CloudOff
+        : syncState.lastResult === 'error'
+            ? AlertTriangle
+            : syncState.pending > 0 || syncing
+                ? RefreshCcw
+                : CheckCircle2;
 
     if (authLoading) {
         return (
             <main className="container">
-                <div className="card">Validando sessao...</div>
+                <div className="card app-state-card">
+                    <div className="app-state-spinner animate-spin" />
+                    <div>
+                        <h2>Preparando ambiente Erione Field</h2>
+                        <p className="text-muted">Validando sessao e restaurando os dados locais.</p>
+                    </div>
+                </div>
             </main>
         );
     }
@@ -156,7 +202,7 @@ function App() {
                         )}
                     </div>
                     <div className="sync-chip">
-                        {!isOnline && <CloudOff size={14} />}
+                        {!isOnline ? <CloudOff size={14} /> : <Cloud size={14} />}
                         <span>{isOnline ? `${syncState.pending || 0} pend.` : 'Offline'}</span>
                         <button className="sync-btn" onClick={handleSyncNow} disabled={syncing || !isOnline}>
                             <RefreshCcw size={14} className={syncing ? 'animate-spin' : ''} />
@@ -171,6 +217,19 @@ function App() {
             </header>
 
             <main className="container">
+                <section className={`status-banner ${syncToneClass}`}>
+                    <div className="status-banner-icon">
+                        <SyncStatusIcon size={18} className={syncing ? 'animate-spin' : ''} />
+                    </div>
+                    <div className="status-banner-copy">
+                        <strong>{!isOnline ? 'Modo offline' : syncing ? 'Sincronizando' : 'Central de operacao'}</strong>
+                        <p>{syncMessage}</p>
+                    </div>
+                    <button className="btn status-banner-btn" onClick={handleSyncNow} disabled={syncing || !isOnline}>
+                        <RefreshCcw size={16} className={syncing ? 'animate-spin' : ''} />
+                        Atualizar agora
+                    </button>
+                </section>
                 {renderContent()}
             </main>
         </div>

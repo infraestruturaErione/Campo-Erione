@@ -16,9 +16,11 @@ export function OSCard({ os, showCreator = false }) {
                     {os.status}
                 </span>
             </div>
-            <p className="sync-status-text">
-                Sync: {os.statusSync || 'PENDENTE_SYNC'}
-            </p>
+            <div className="os-meta-strip">
+                <span className="soft-badge">Sync: {os.statusSync || 'PENDENTE_SYNC'}</span>
+                <span className="soft-badge">Fotos: {Array.isArray(os.photoIds) ? os.photoIds.length : 0}</span>
+                <span className="soft-badge">Local: {os.local || '-'}</span>
+            </div>
             {showCreator && (
                 <p className="sync-status-text">
                     Criado por: {os.ownerName || os.ownerUsername || '-'}

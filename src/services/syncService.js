@@ -1,12 +1,13 @@
-import { getOSList, getPhoto, saveOS } from './storage';
+import { getOSList, saveOS } from './storage';
 import { logProgress } from './progressLog';
 import { emitOSUpdated } from '../events/eventBus';
+import { buildAuthHeaders, withApiBase } from './apiConfig';
+import { getStoredPhotoBlob } from './photoBlob';
 
 const SYNC_QUEUE_KEY = 'appcampo_sync_queue_v1';
 const SYNC_STATE_KEY = 'appcampo_sync_state_v1';
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-const SYNC_ENDPOINT = import.meta.env.VITE_SYNC_ENDPOINT || (API_BASE ? `${API_BASE}/api/sync/os` : '/api/sync/os');
-const MEDIA_UPLOAD_ENDPOINT = API_BASE ? `${API_BASE}/api/media/upload` : '/api/media/upload';
+const SYNC_ENDPOINT = import.meta.env.VITE_SYNC_ENDPOINT || withApiBase('/api/sync/os');
+const MEDIA_UPLOAD_ENDPOINT = withApiBase('/api/media/upload');
 let syncInFlight = false;
 
 const loadQueue = () => {
@@ -95,7 +96,7 @@ export const queueOSDelete = (os) => {
 const sendSyncOperation = async (operation) => {
     const response = await fetch(SYNC_ENDPOINT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify(operation),
     });
@@ -114,6 +115,7 @@ const uploadPhotoToBucket = async ({ osId, photoMeta, blob }) => {
 
     const response = await fetch(MEDIA_UPLOAD_ENDPOINT, {
         method: 'POST',
+        headers: buildAuthHeaders(),
         credentials: 'include',
         body: formData,
     });
@@ -142,7 +144,7 @@ const ensureSyncedPhotoMeta = async (operation) => {
             continue;
         }
 
-        const blob = photoMeta.id ? await getPhoto(photoMeta.id) : null;
+        const blob = photoMeta.id ? await getStoredPhotoBlob(photoMeta.id) : null;
         if (!blob) {
             syncedMeta.push(photoMeta);
             continue;

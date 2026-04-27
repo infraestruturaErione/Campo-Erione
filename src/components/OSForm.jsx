@@ -1,6 +1,21 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, Send, Loader2, ChevronLeft, ChevronRight, Save, Images, X } from 'lucide-react';
+import {
+    Camera,
+    Send,
+    Loader2,
+    ChevronLeft,
+    ChevronRight,
+    Save,
+    Images,
+    X,
+    ClipboardList,
+    ShieldCheck,
+    MapPinned,
+    CheckCircle2,
+    FileText,
+} from 'lucide-react';
 import { createOS } from '../services/osService';
+import { useToast } from './ui/ToastProvider';
 
 const DRAFT_KEY = 'appcampo_os_draft_v1';
 
@@ -18,6 +33,7 @@ const INITIAL_FORM_STATE = {
 };
 
 function OSForm({ onSuccess, currentUser }) {
+    const toast = useToast();
     const [loading, setLoading] = useState(false);
     const [step, setStep] = useState(0);
     const [formData, setFormData] = useState(INITIAL_FORM_STATE);
@@ -73,7 +89,7 @@ function OSForm({ onSuccess, currentUser }) {
             setPhotos((prev) => [...prev, ...newPhotos]);
         } catch (error) {
             console.error('Erro ao processar fotos:', error);
-            alert('Erro ao carregar algumas imagens.');
+            toast.error('Nao foi possivel carregar uma ou mais imagens.', 'Fotos');
         }
     };
 
@@ -100,14 +116,14 @@ function OSForm({ onSuccess, currentUser }) {
     const validateStep = () => {
         if (step === 0) {
             if (!formData.responsavelMotiva || !formData.responsavelContratada || !formData.obraEquipamento) {
-                alert('Preencha os campos obrigatorios para continuar.');
+                toast.info('Preencha os campos obrigatorios antes de avancar.', 'Formulario');
                 return false;
             }
         }
 
         if (step === 1) {
             if (!formData.descricao) {
-                alert('A descricao detalhada e obrigatoria.');
+                toast.info('A descricao detalhada e obrigatoria para salvar a OS.', 'Formulario');
                 return false;
             }
         }
@@ -142,20 +158,44 @@ function OSForm({ onSuccess, currentUser }) {
 
         try {
             await createOS(formData, photos, currentUser);
+            toast.success('Relatorio salvo com sucesso e preparado para sincronizacao.', 'OS criada');
             resetForm();
             onSuccess();
         } catch (error) {
             console.error('Erro ao salvar OS:', error);
 
             if (error.name === 'QuotaExceededError') {
-                alert('Limite de armazenamento no navegador atingido. Tente excluir relatorios antigos.');
+                toast.error('Limite de armazenamento atingido. Exclua relatorios antigos antes de continuar.', 'Armazenamento');
             } else {
-                alert('Erro ao salvar relatorio. Verifique sua conexao ou tente novamente.');
+                toast.error('Erro ao salvar relatorio. Verifique a conexao e tente novamente.', 'Salvar relatorio');
             }
         } finally {
             setLoading(false);
         }
     };
+
+    const summaryItems = [
+        {
+            label: 'Responsavel Erione',
+            value: formData.responsavelMotiva || 'Nao informado',
+            icon: ClipboardList,
+        },
+        {
+            label: 'Responsavel contratada',
+            value: formData.responsavelContratada || 'Nao informado',
+            icon: ShieldCheck,
+        },
+        {
+            label: 'Obra e local',
+            value: `${formData.obraEquipamento || 'Nao informado'}${formData.local ? ` • ${formData.local}` : ''}`,
+            icon: MapPinned,
+        },
+        {
+            label: 'Status operacional',
+            value: formData.status || 'Em andamento',
+            icon: CheckCircle2,
+        },
+    ];
 
     return (
         <div className="card field-mode-card">
@@ -167,9 +207,46 @@ function OSForm({ onSuccess, currentUser }) {
                 <div className="wizard-progress-track">
                     <div className="wizard-progress-fill" style={{ width: `${((step + 1) / steps.length) * 100}%` }} />
                 </div>
+                <div className="wizard-step-list">
+                    {steps.map((item, index) => (
+                        <div
+                            key={item.id}
+                            className={`wizard-step-pill ${index === step ? 'is-current' : index < step ? 'is-complete' : ''}`}
+                        >
+                            <span>{String(index + 1).padStart(2, '0')}</span>
+                            <strong>{item.title}</strong>
+                        </div>
+                    ))}
+                </div>
+                <div className="form-hero-meta">
+                    <span className="soft-badge">Erione Field</span>
+                    <span className="soft-badge">{photos.length} foto(s)</span>
+                    <span className="soft-badge">{formData.status}</span>
+                </div>
+            </div>
+
+            <div className="field-summary-grid">
+                {summaryItems.map(({ label, value, icon: Icon }) => (
+                    <article key={label} className="field-summary-card">
+                        <div className="field-summary-icon">
+                            <Icon size={16} />
+                        </div>
+                        <div>
+                            <p>{label}</p>
+                            <strong>{value}</strong>
+                        </div>
+                    </article>
+                ))}
             </div>
 
             <div className="photo-quick-panel">
+                <div className="photo-quick-head">
+                    <div>
+                        <p className="section-eyebrow">Captura de campo</p>
+                        <h3>Registro fotografico</h3>
+                    </div>
+                    <p className="text-muted">As observacoes das fotos seguem para PDF, Excel e compartilhamento.</p>
+                </div>
                 <div className="photo-quick-actions">
                     <button type="button" className="btn" style={{ background: '#1e40af', color: '#fff' }} onClick={() => cameraInputRef.current?.click()}>
                         <Camera size={18} />
@@ -274,6 +351,14 @@ function OSForm({ onSuccess, currentUser }) {
 
                 {step === 1 && (
                     <>
+                        <div className="field-tip-banner">
+                            <ShieldCheck size={18} />
+                            <div>
+                                <strong>Preencha como se o relatorio fosse para envio imediato.</strong>
+                                <p className="text-muted">Esse texto alimenta PDF, Excel e mensagem operacional.</p>
+                            </div>
+                        </div>
+
                         <div className="form-group">
                             <label>SEGURANCA DO TRABALHO</label>
                             <textarea name="segurancaTrabalho" rows={3} value={formData.segurancaTrabalho} onChange={handleChange} />
@@ -310,6 +395,71 @@ function OSForm({ onSuccess, currentUser }) {
                             <Save size={16} />
                             Rascunho salvo automaticamente no dispositivo.
                         </div>
+
+                        <div className="review-grid">
+                            <article className="review-card">
+                                <div className="review-card-head">
+                                    <FileText size={18} />
+                                    <div>
+                                        <h3>Resumo da operacao</h3>
+                                        <p className="text-muted">Confira os dados antes de finalizar.</p>
+                                    </div>
+                                </div>
+                                <div className="review-list">
+                                    <div>
+                                        <span>Responsavel Erione</span>
+                                        <strong>{formData.responsavelMotiva || 'Nao informado'}</strong>
+                                    </div>
+                                    <div>
+                                        <span>Responsavel contratada</span>
+                                        <strong>{formData.responsavelContratada || 'Nao informado'}</strong>
+                                    </div>
+                                    <div>
+                                        <span>Obra/Equipamento</span>
+                                        <strong>{formData.obraEquipamento || 'Nao informado'}</strong>
+                                    </div>
+                                    <div>
+                                        <span>Horario</span>
+                                        <strong>{formData.horarioInicio} as {formData.horarioFim}</strong>
+                                    </div>
+                                    <div>
+                                        <span>Local</span>
+                                        <strong>{formData.local || 'Nao informado'}</strong>
+                                    </div>
+                                    <div>
+                                        <span>Status</span>
+                                        <strong>{formData.status}</strong>
+                                    </div>
+                                </div>
+                            </article>
+
+                            <article className="review-card">
+                                <div className="review-card-head">
+                                    <Images size={18} />
+                                    <div>
+                                        <h3>Fotos e observacoes</h3>
+                                        <p className="text-muted">Tudo o que estiver aqui segue para os relatórios.</p>
+                                    </div>
+                                </div>
+                                {photos.length === 0 ? (
+                                    <div className="empty-inline-state">
+                                        Nenhuma foto adicionada ainda. O relatorio pode ser salvo sem imagens, mas perde contexto visual.
+                                    </div>
+                                ) : (
+                                    <div className="review-photo-list">
+                                        {photos.map((photo, index) => (
+                                            <div key={photo.id} className="review-photo-row">
+                                                <img src={photo.preview} alt={`Foto ${index + 1}`} />
+                                                <div>
+                                                    <strong>Foto {String(index + 1).padStart(2, '0')}</strong>
+                                                    <p>{photo.note?.trim() || 'Sem observacao registrada.'}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </article>
+                        </div>
                     </>
                 )}
 
@@ -343,3 +493,4 @@ function OSForm({ onSuccess, currentUser }) {
 }
 
 export default OSForm;
+

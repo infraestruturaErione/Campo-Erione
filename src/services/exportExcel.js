@@ -2,7 +2,7 @@
 import { theme } from './excel/excelTheme.js';
 import { drawRow, drawBigBox } from './excel/excelHelpers.js';
 import { addLogo, drawPhotos } from './excel/excelImages.js';
-import { downloadExcel } from './excel/excelDownloader.js';
+import { downloadGeneratedFile } from './nativeFileExport';
 
 const sanitizeFileName = (value) =>
     String(value || 'Obra')
@@ -14,8 +14,8 @@ const sanitizeFileName = (value) =>
 
 const buildExcelWorkbook = async (os) => {
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'AppCampo - Motiva Engenharia';
-    workbook.lastModifiedBy = 'AppCampo';
+    workbook.creator = 'Erione Field - Motiva Engenharia';
+    workbook.lastModifiedBy = 'Erione Field';
     workbook.created = new Date();
     workbook.company = 'Motiva Engenharia';
 
@@ -29,17 +29,17 @@ const buildExcelWorkbook = async (os) => {
         fitToHeight: 0,
         margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
     };
-    worksheet.headerFooter.oddFooter = '&LAppCampo&RPagina &P de &N';
+    worksheet.headerFooter.oddFooter = '&LErione Field&RPagina &P de &N';
 
     worksheet.views = [{ state: 'frozen', ySplit: 2, showGridLines: false }];
 
     worksheet.columns = [
-        { width: 30 },
-        { width: 15 },
-        { width: 25 },
-        { width: 15 },
+        { width: 24 },
+        { width: 18 },
         { width: 20 },
-        { width: 20 },
+        { width: 16 },
+        { width: 16 },
+        { width: 16 },
     ];
 
     await addLogo(workbook, worksheet);
@@ -49,13 +49,20 @@ const buildExcelWorkbook = async (os) => {
     titleCell.value = 'RELATORIO DIARIO DE OBRAS';
     titleCell.font = theme.font.title;
     titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    worksheet.getRow(1).height = 65;
+    worksheet.getRow(1).height = 50;
+
+    worksheet.mergeCells('C2:F2');
+    const subtitleCell = worksheet.getCell('C2');
+    subtitleCell.value = 'Documento tecnico gerado pelo Erione Field';
+    subtitleCell.font = theme.font.subtitle;
+    subtitleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    worksheet.getRow(2).height = 18;
 
     drawRow(
         worksheet,
         4,
         {
-            label1: 'RESPONSAVEL MOTIVA:',
+            label1: 'RESPONSAVEL ERIONE:',
             value1: os.responsavelMotiva || '-',
             mergeEnd1: 4,
             label2: 'DATA:',
@@ -95,7 +102,15 @@ const buildExcelWorkbook = async (os) => {
 
 export const exportToExcel = async (os) => {
     const { workbook, filename } = await buildExcelWorkbook(os);
-    await downloadExcel(workbook, filename);
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    return downloadGeneratedFile({
+        blob,
+        filename,
+        title: `Excel da OS ${String(os.id || '').slice(-6)}`,
+    });
 };
 
 export const exportToExcelBlob = async (os) => {

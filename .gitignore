@@ -21,6 +21,7 @@ Thumbs.db
 # Runtime local artifacts
 progress.txt
 sync-mirror.json
+temp-*.png
 
 # Capacitor / Android local and build files
 android/.gradle/
@@ -31,6 +32,8 @@ android/captures/
 android/.idea/
 android/app/release/
 android/app/debug/
+android/keystore.properties
+android/keystore/
 
 # Optional iOS artifacts (future use)
 ios/DerivedData/

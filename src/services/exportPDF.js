@@ -1,6 +1,7 @@
 ﻿import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import { getPhoto } from './storage';
+import { downloadGeneratedFile } from './nativeFileExport';
+import { getStoredPhotoBlob } from './photoBlob';
 
 const loadImage = (url) =>
     fetch(url)
@@ -94,7 +95,8 @@ const buildPdfDocument = async (os) => {
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    let currentY = 10;
+    const contentWidth = pageWidth - (margin * 2);
+    let currentY = 12;
 
     const ensurePageSpace = (neededHeight) => {
         if (currentY + neededHeight > pageHeight - 20) {
@@ -107,82 +109,90 @@ const buildPdfDocument = async (os) => {
 
     try {
         const logo = await loadImage('/logo_motiva.png');
-        doc.addImage(logo, 'PNG', 10, currentY, 45, 20);
+        doc.addImage(logo, 'PNG', margin, currentY, 40, 18);
     } catch (error) {
         console.error('Logo load failed, using fallback', error);
         doc.setFillColor(59, 130, 246);
-        doc.rect(10, currentY, 30, 20, 'F');
+        doc.rect(margin, currentY, 30, 18, 'F');
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(10);
-        doc.text('motiva', 15, currentY + 12);
+        doc.text('motiva', margin + 5, currentY + 11);
     }
 
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(18);
+    doc.setTextColor(29, 78, 216);
+    doc.setFontSize(17);
     doc.setFont(undefined, 'bold');
-    doc.text('RELATORIO DIARIO DE OBRAS', pageWidth / 2 + 20, currentY + 10, { align: 'center' });
+    doc.text('RELATORIO DIARIO DE OBRAS', pageWidth - margin, currentY + 8, { align: 'right' });
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'italic');
+    doc.setTextColor(100, 116, 139);
+    doc.text('Documento tecnico gerado pelo Erione Field', pageWidth - margin, currentY + 14, { align: 'right' });
 
-    currentY += 25;
+    currentY += 24;
 
-    doc.setDrawColor(200);
+    doc.setDrawColor(203, 213, 225);
     doc.setLineWidth(0.5);
-    doc.line(10, currentY, pageWidth - 10, currentY);
+    doc.line(margin, currentY, pageWidth - margin, currentY);
     currentY += 10;
 
-    const drawField = (label, value, x, y, xEnd) => {
-        const valueX = x + 40;
-        const maxTextWidth = Math.max(10, xEnd - valueX - 2);
-        const safeValue = fitTextInWidth(doc, value, maxTextWidth);
-
-        doc.setFontSize(8);
+    const drawInfoBox = (label, value, x, y, width, height = 15) => {
+        doc.setDrawColor(203, 213, 225);
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(x, y, width, height, 2, 2, 'S');
+        doc.setFontSize(7);
         doc.setFont(undefined, 'bold');
-        doc.text(label, x, y);
+        doc.setTextColor(71, 85, 105);
+        doc.text(label, x + 3, y + 4.5);
+        doc.setFontSize(10);
         doc.setFont(undefined, 'normal');
-        doc.text(safeValue, valueX, y);
-        doc.setDrawColor(0);
-        doc.line(valueX, y + 1, xEnd, y + 1);
+        doc.setTextColor(15, 23, 42);
+        const safeValue = fitTextInWidth(doc, value || '-', width - 6);
+        doc.text(safeValue, x + 3, y + 10.5);
     };
 
-    const col1 = 14;
-    const col2 = 130;
+    const gap = 6;
+    const wideLeft = 116;
+    const narrowRight = contentWidth - wideLeft - gap;
 
-    drawField('RESPONSAVEL MOTIVA:', os.responsavelMotiva, col1, currentY, 110);
-    drawField('DATA:', new Date(os.createdAt).toLocaleDateString('pt-BR'), col2, currentY, pageWidth - 14);
+    drawInfoBox('RESPONSAVEL ERIONE', os.responsavelMotiva, margin, currentY, wideLeft);
+    drawInfoBox('DATA', new Date(os.createdAt).toLocaleDateString('pt-BR'), margin + wideLeft + gap, currentY, narrowRight);
+    currentY += 19;
 
-    currentY += 10;
-    drawField('RESPONSAVEL CONTRATADA:', os.responsavelContratada, col1, currentY, pageWidth - 14);
+    drawInfoBox('RESPONSAVEL CONTRATADA', os.responsavelContratada, margin, currentY, contentWidth);
+    currentY += 19;
 
-    currentY += 10;
-    drawField('OBRA/EQUIPAMENTO:', os.obraEquipamento, col1, currentY, pageWidth - 14);
+    drawInfoBox('OBRA / EQUIPAMENTO', os.obraEquipamento, margin, currentY, contentWidth);
+    currentY += 19;
 
-    currentY += 10;
-    drawField('HORARIO INICIO:', os.horarioInicio, col1, currentY, 110);
-    drawField('HORARIO FIM:', os.horarioFim, col2, currentY, pageWidth - 14);
+    const halfWidth = (contentWidth - gap) / 2;
+    drawInfoBox('HORARIO INICIO', os.horarioInicio, margin, currentY, halfWidth);
+    drawInfoBox('HORARIO FIM', os.horarioFim, margin + halfWidth + gap, currentY, halfWidth);
+    currentY += 19;
 
-    currentY += 10;
-    drawField('LOCAL:', os.local, col1, currentY, pageWidth - 14);
-
-    currentY += 15;
+    drawInfoBox('LOCAL', os.local, margin, currentY, contentWidth);
+    currentY += 18;
 
     const drawBoxSection = (title, content) => {
-        const splitText = doc.splitTextToSize(content || '-', pageWidth - 25);
+        const splitText = doc.splitTextToSize(content || '-', pageWidth - 28);
         const textHeight = splitText.length * 5;
-        const totalHeight = textHeight + 15;
+        const totalHeight = textHeight + 18;
 
         ensurePageSpace(totalHeight);
 
-        doc.setFillColor(245, 245, 245);
-        doc.rect(10, currentY, pageWidth - 20, 6, 'F');
+        doc.setFillColor(232, 238, 249);
+        doc.roundedRect(margin, currentY, pageWidth - 28, 6, 1.5, 1.5, 'F');
         doc.setFontSize(9);
         doc.setFont(undefined, 'bold');
-        doc.text(title, 12, currentY + 4.5);
+        doc.setTextColor(30, 58, 138);
+        doc.text(title, margin + 2.5, currentY + 4.5);
 
-        doc.setDrawColor(0);
-        doc.rect(10, currentY, pageWidth - 20, totalHeight);
+        doc.setDrawColor(203, 213, 225);
+        doc.roundedRect(margin, currentY, pageWidth - 28, totalHeight, 1.5, 1.5);
 
         doc.setFont(undefined, 'normal');
         doc.setFontSize(9);
-        doc.text(splitText, 12, currentY + 12);
+        doc.setTextColor(15, 23, 42);
+        doc.text(splitText, margin + 2.5, currentY + 12);
 
         currentY += totalHeight + 5;
     };
@@ -192,12 +202,13 @@ const buildPdfDocument = async (os) => {
     drawBoxSection('Ocorrencias:', os.ocorrencias);
 
     ensurePageSpace(15);
-    doc.setFillColor(245, 245, 245);
-    doc.rect(10, currentY, pageWidth - 20, 10, 'F');
+    doc.setFillColor(232, 238, 249);
+    doc.roundedRect(margin, currentY, contentWidth, 10, 1.5, 1.5, 'F');
     doc.setFont(undefined, 'bold');
     doc.setFontSize(12);
+    doc.setTextColor(30, 58, 138);
     doc.text('Relatorio Fotografico', pageWidth / 2, currentY + 7, { align: 'center' });
-    doc.rect(10, currentY, pageWidth - 20, 10);
+    doc.roundedRect(margin, currentY, contentWidth, 10, 1.5, 1.5);
     currentY += 15;
 
     const photosMeta = Array.isArray(os.photosMeta) && os.photosMeta.length > 0
@@ -212,7 +223,7 @@ const buildPdfDocument = async (os) => {
 
         const photoData = await Promise.all(
             photosMeta.map(async (item) => {
-                const localBlob = item.id ? await getPhoto(item.id) : null;
+                const localBlob = item.id ? await getStoredPhotoBlob(item.id) : null;
                 const base64 = localBlob
                     ? await normalizePhotoForPdf(localBlob)
                     : await fetchRemotePhotoDataUrl(item.url);
@@ -230,13 +241,16 @@ const buildPdfDocument = async (os) => {
             ensurePageSpace(photoSlotHeight + 4);
 
             doc.addImage(currentPhoto.base64, detectImageFormat(currentPhoto.base64), photoX, currentY, photoWidth, photoHeight, undefined, 'FAST');
-            doc.setDrawColor(0);
+            doc.setDrawColor(203, 213, 225);
             doc.rect(photoX, currentY, photoWidth, photoHeight);
 
-            const noteLabel = fitTextInWidth(doc, `Obs: ${currentPhoto.note || '-'}`, photoWidth - 2);
+            doc.setFillColor(248, 250, 252);
+            doc.rect(photoX, currentY + photoHeight, photoWidth, 8, 'F');
+            const noteLabel = fitTextInWidth(doc, `Observacao: ${currentPhoto.note || '-'}`, photoWidth - 3);
             doc.setFontSize(8);
             doc.setFont(undefined, 'normal');
-            doc.text(noteLabel, photoX + 1, currentY + photoHeight + 5);
+            doc.setTextColor(15, 23, 42);
+            doc.text(noteLabel, photoX + 1.5, currentY + photoHeight + 5);
 
             if (i % 2 === 0 && i !== validPhotos.length - 1) {
                 photoX = 110;
@@ -252,7 +266,7 @@ const buildPdfDocument = async (os) => {
         doc.setPage(page);
         doc.setFontSize(8);
         doc.setTextColor(100);
-        doc.text(`AppCampo | OS ${String(os.id || '').slice(0, 8)} | Pagina ${page}/${totalPages}`, margin, pageHeight - 7);
+        doc.text(`Erione Field | OS ${String(os.id || '').slice(0, 8)} | Pagina ${page}/${totalPages}`, margin, pageHeight - 7);
         doc.text(new Date(os.createdAt).toLocaleString('pt-BR'), pageWidth - margin, pageHeight - 7, { align: 'right' });
     }
 
@@ -263,7 +277,12 @@ const buildPdfDocument = async (os) => {
 
 export const exportToPDF = async (os) => {
     const { doc, filename } = await buildPdfDocument(os);
-    doc.save(filename);
+    const blob = doc.output('blob');
+    return downloadGeneratedFile({
+        blob,
+        filename,
+        title: `PDF da OS ${String(os.id || '').slice(-6)}`,
+    });
 };
 
 export const exportToPDFBlob = async (os) => {

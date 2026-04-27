@@ -1,4 +1,6 @@
-const ADMIN_BASE = '/api/admin';
+import { buildAuthHeaders, withApiBase } from './apiConfig';
+
+const ADMIN_BASE = withApiBase('/api/admin');
 
 const parseError = async (response) => {
     const payload = await response.json().catch(() => null);
@@ -22,6 +24,7 @@ export const fetchAdminUsers = async ({ search = '' } = {}) => {
     if (search) query.set('search', search);
 
     const response = await fetch(`${ADMIN_BASE}/users?${query.toString()}`, {
+        headers: buildAuthHeaders(),
         credentials: 'include',
     });
 
@@ -36,7 +39,7 @@ export const fetchAdminUsers = async ({ search = '' } = {}) => {
 export const createAdminUser = async ({ name, username, password, role }) => {
     const response = await fetch(`${ADMIN_BASE}/users`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify({ name, username, password, role }),
     });
@@ -49,7 +52,7 @@ export const createAdminUser = async ({ name, username, password, role }) => {
 export const updateAdminUser = async (userId, payload) => {
     const response = await fetch(`${ADMIN_BASE}/users/${userId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
         credentials: 'include',
         body: JSON.stringify(payload),
     });
@@ -62,6 +65,7 @@ export const updateAdminUser = async (userId, payload) => {
 export const deleteAdminUser = async (userId) => {
     const response = await fetch(`${ADMIN_BASE}/users/${userId}`, {
         method: 'DELETE',
+        headers: buildAuthHeaders(),
         credentials: 'include',
     });
 

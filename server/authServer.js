@@ -9,10 +9,43 @@ import { uploadImageToBucket } from './s3Service.js';
 
 const app = express();
 const port = Number(process.env.AUTH_API_PORT || 3001);
+const host = process.env.AUTH_API_HOST || '0.0.0.0';
 const sessionTtlHours = Number(process.env.SESSION_TTL_HOURS || 24);
 const sessionCookieName = process.env.AUTH_COOKIE_NAME || 'appcampo_sid';
+const rawAllowedOrigins = String(process.env.AUTH_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+const defaultAllowedOrigins = [
+    'http://localhost',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://10.0.2.2:5173',
+    'capacitor://localhost',
+    'ionic://localhost',
+];
+const allowedOrigins = new Set([...defaultAllowedOrigins, ...rawAllowedOrigins]);
+const isLoopbackOrigin = (origin) => /^http:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?$/.test(origin);
 
 const isProduction = process.env.NODE_ENV === 'production';
+
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin && (allowedOrigins.has(origin) || isLoopbackOrigin(origin))) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Session-Id');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+
+    if (req.method === 'OPTIONS') {
+        return res.status(204).end();
+    }
+
+    return next();
+});
 
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
@@ -98,7 +131,7 @@ const createSession = async (userId) => {
 };
 
 const resolveCurrentUser = async (req) => {
-    const sessionId = req.cookies?.[sessionCookieName];
+    const sessionId = req.cookies?.[sessionCookieName] || req.get('x-session-id');
     if (!sessionId) return null;
 
     await pool.query(`DELETE FROM auth_sessions WHERE expires_at <= NOW()`);
@@ -195,6 +228,7 @@ app.post('/api/auth/login', async (req, res) => {
 
         return res.status(200).json({
             user: toSafeUser(user),
+            sessionId: session.sessionId,
         });
     } catch (error) {
         console.error('Erro no login', error);
@@ -534,8 +568,8 @@ app.patch('/api/admin/os/:osId/status', requireAdmin, async (req, res) => {
 const start = async () => {
     await ensureAuthSchema();
     await pool.query(`UPDATE users SET role = 'technician' WHERE role NOT IN ('admin', 'technician')`);
-    app.listen(port, () => {
-        console.log(`[auth-api] running on http://localhost:${port}`);
+    app.listen(port, host, () => {
+        console.log(`[auth-api] running on http://${host}:${port}`);
     });
 };
 

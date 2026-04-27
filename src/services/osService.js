@@ -4,6 +4,12 @@ import { logProgress } from './progressLog';
 import { queueOSCreateOrUpdate, queueOSDelete, syncPendingOperations } from './syncService';
 import { emitOSUpdated } from '../events/eventBus';
 
+const normalizePhotoFile = async (file) => {
+    if (!(file instanceof Blob)) return file;
+    const bytes = await file.arrayBuffer();
+    return new Blob([bytes], { type: file.type || 'image/jpeg' });
+};
+
 /**
  * Creates a new OS with specialized business logic.
  * Implements Atomic Transaction pattern (Compensation/Rollback).
@@ -33,7 +39,8 @@ export async function createOS(formData, photos, currentUser) {
         const photosMeta = await Promise.all(
             photos.map(async (photo) => {
                 const photoId = `${osId}-${uuidv4()}`;
-                await storePhoto(photoId, photo.file);
+                const normalizedFile = await normalizePhotoFile(photo.file);
+                await storePhoto(photoId, normalizedFile);
                 return {
                     id: photoId,
                     note: String(photo.note || '').trim(),
