@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
 const endpoint = process.env.S3_ENDPOINT;
 const region = process.env.S3_REGION;
@@ -41,12 +41,12 @@ const buildObjectUrl = (key) => {
     return `${base.protocol}//${bucket}.${base.host}/${key}`;
 };
 
-export const uploadImageToBucket = async ({ buffer, mimeType, originalName, osId }) => {
+export const uploadImageToBucket = async ({ buffer, mimeType, originalName, filename, osId }) => {
     if (!s3 || !bucket) {
         throw new Error('S3 nao configurado no ambiente.');
     }
 
-    const safeName = sanitizeFileName(originalName);
+    const safeName = sanitizeFileName(originalName || filename);
     const safeOsId = sanitizePathSegment(osId);
     const key = `os/${safeOsId}/${randomUUID()}-${safeName}`;
 
@@ -62,5 +62,29 @@ export const uploadImageToBucket = async ({ buffer, mimeType, originalName, osId
     return {
         objectKey: key,
         url: buildObjectUrl(key),
+    };
+};
+
+export const getImageFromBucket = async (objectKey) => {
+    if (!s3 || !bucket) {
+        throw new Error('S3 nao configurado no ambiente.');
+    }
+
+    const safeKey = String(objectKey || '').trim();
+    if (!safeKey) {
+        throw new Error('Object key invalido.');
+    }
+
+    const response = await s3.send(
+        new GetObjectCommand({
+            Bucket: bucket,
+            Key: safeKey,
+        })
+    );
+
+    const bytes = await response.Body.transformToByteArray();
+    return {
+        buffer: Buffer.from(bytes),
+        mimeType: response.ContentType || 'application/octet-stream',
     };
 };

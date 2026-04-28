@@ -1,4 +1,5 @@
 ﻿import { getStoredPhotoBlob } from '../photoBlob';
+import { fetchPhotoBlobFromMeta } from '../photoAccess';
 
 const convertBlobToJpegBuffer = async (blob) => {
     const dataUrl = await new Promise((resolve, reject) => {
@@ -30,12 +31,10 @@ const convertBlobToJpegBuffer = async (blob) => {
     return response.arrayBuffer();
 };
 
-const fetchRemotePhotoBuffer = async (url) => {
-    if (!url) return null;
+const fetchRemotePhotoBuffer = async (photoMeta) => {
     try {
-        const response = await fetch(url);
-        if (!response.ok) return null;
-        const blob = await response.blob();
+        const blob = await fetchPhotoBlobFromMeta(photoMeta);
+        if (!blob) return null;
 
         if (blob.type === 'image/png' || blob.type === 'image/jpeg' || blob.type === 'image/jpg') {
             return {
@@ -108,7 +107,7 @@ export const drawPhotos = async (workbook, worksheet, os, startRow, theme) => {
                 };
             }
 
-            const remote = await fetchRemotePhotoBuffer(item.url);
+            const remote = await fetchRemotePhotoBuffer(item);
             if (!remote) return null;
             return {
                 ...remote,

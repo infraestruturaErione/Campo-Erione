@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
 import { getPhoto } from '../services/storage';
+import { buildPhotoAccessUrl } from '../services/photoAccess';
 
 export function OSPhotos({ osId, photoIds = [], photosMeta = [] }) {
     const [previews, setPreviews] = useState([]);
@@ -32,8 +33,9 @@ export function OSPhotos({ osId, photoIds = [], photosMeta = [] }) {
                     if (localBlob) {
                         return URL.createObjectURL(localBlob);
                     }
-                    if (item.url) {
-                        return item.url;
+                    const remoteUrl = buildPhotoAccessUrl(item);
+                    if (remoteUrl) {
+                        return remoteUrl;
                     }
                     return null;
                 })

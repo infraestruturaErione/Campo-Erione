@@ -2,6 +2,7 @@
 import 'jspdf-autotable';
 import { downloadGeneratedFile } from './nativeFileExport';
 import { getStoredPhotoBlob } from './photoBlob';
+import { fetchPhotoBlobFromMeta } from './photoAccess';
 
 const loadImage = (url) =>
     fetch(url)
@@ -78,12 +79,10 @@ const normalizePhotoForPdf = async (blob) => {
     return imageToJpegDataUrl(rawDataUrl);
 };
 
-const fetchRemotePhotoDataUrl = async (url) => {
-    if (!url) return null;
+const fetchRemotePhotoDataUrl = async (photoMeta) => {
     try {
-        const response = await fetch(url);
-        if (!response.ok) return null;
-        const blob = await response.blob();
+        const blob = await fetchPhotoBlobFromMeta(photoMeta);
+        if (!blob) return null;
         return normalizePhotoForPdf(blob);
     } catch {
         return null;
@@ -226,7 +225,7 @@ const buildPdfDocument = async (os) => {
                 const localBlob = item.id ? await getStoredPhotoBlob(item.id) : null;
                 const base64 = localBlob
                     ? await normalizePhotoForPdf(localBlob)
-                    : await fetchRemotePhotoDataUrl(item.url);
+                    : await fetchRemotePhotoDataUrl(item);
                 return {
                     base64,
                     note: String(item.note || '').trim(),

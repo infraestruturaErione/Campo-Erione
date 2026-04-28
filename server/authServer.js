@@ -5,7 +5,7 @@ import multer from 'multer';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { ensureAuthSchema, pool } from './db.js';
-import { uploadImageToBucket } from './s3Service.js';
+import { getImageFromBucket, uploadImageToBucket } from './s3Service.js';
 import { sendError, sendSuccess } from './response.js';
 
 const app = express();
@@ -668,6 +668,23 @@ app.post('/api/media/upload-base64', requireAuth, async (req, res) => {
     } catch (error) {
         console.error('Erro no upload base64', error);
         return sendError(res, 500, 'Falha ao enviar imagem');
+    }
+});
+
+app.get('/api/media/object', requireAuth, async (req, res) => {
+    const objectKey = String(req.query.key || '').trim();
+    if (!objectKey || objectKey.length > 500) {
+        return sendError(res, 400, 'Objeto de imagem invalido');
+    }
+
+    try {
+        const image = await getImageFromBucket(objectKey);
+        res.setHeader('Content-Type', image.mimeType || 'application/octet-stream');
+        res.setHeader('Cache-Control', 'private, max-age=300');
+        return res.status(200).send(image.buffer);
+    } catch (error) {
+        console.error('Erro ao buscar imagem do bucket', error);
+        return sendError(res, 404, 'Imagem nao encontrada');
     }
 });
 
