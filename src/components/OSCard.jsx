@@ -3,6 +3,10 @@ import { OSPhotos } from './OSPhotos';
 import { OSActions } from './OSActions';
 
 export function OSCard({ os, showCreator = false }) {
+    const photoCount = Array.isArray(os.photosMeta) && os.photosMeta.length > 0
+        ? os.photosMeta.length
+        : (Array.isArray(os.photoIds) ? os.photoIds.length : 0);
+
     return (
         <div className="card">
             <div className="os-header">
@@ -18,7 +22,7 @@ export function OSCard({ os, showCreator = false }) {
             </div>
             <div className="os-meta-strip">
                 <span className="soft-badge">Sync: {os.statusSync || 'PENDENTE_SYNC'}</span>
-                <span className="soft-badge">Fotos: {Array.isArray(os.photoIds) ? os.photoIds.length : 0}</span>
+                <span className="soft-badge">Fotos: {photoCount}</span>
                 <span className="soft-badge">Local: {os.local || '-'}</span>
             </div>
             {showCreator && (
@@ -65,8 +69,8 @@ export function OSCard({ os, showCreator = false }) {
                 </div>
             )}
 
-            {os.photoIds && os.photoIds.length > 0 && (
-                <OSPhotos osId={os.id} photoIds={os.photoIds} />
+            {((Array.isArray(os.photoIds) && os.photoIds.length > 0) || (Array.isArray(os.photosMeta) && os.photosMeta.length > 0)) && (
+                <OSPhotos osId={os.id} photoIds={os.photoIds} photosMeta={os.photosMeta} />
             )}
 
             <OSActions os={os} />

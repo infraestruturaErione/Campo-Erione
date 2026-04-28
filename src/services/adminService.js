@@ -52,8 +52,23 @@ export const fetchAdminOS = async ({ search = '', status = '' } = {}) => {
 
     const payload = await response.json();
     const items = payload.items || [];
+    const normalizePayload = (value) => {
+        if (!value) return {};
+        if (typeof value === 'string') {
+            try {
+                return JSON.parse(value);
+            } catch {
+                return {};
+            }
+        }
+        if (typeof value === 'object') {
+            return value;
+        }
+        return {};
+    };
+
     return items.map((item) => {
-        const source = item.payload || {};
+        const source = normalizePayload(item.payload);
         return {
             ...source,
             id: item.osId,

@@ -183,6 +183,21 @@ const toSafeUser = (row) => ({
     createdAt: row.created_at,
 });
 
+const normalizeOsPayload = (value) => {
+    if (!value) return {};
+    if (typeof value === 'string') {
+        try {
+            return JSON.parse(value);
+        } catch {
+            return {};
+        }
+    }
+    if (typeof value === 'object') {
+        return value;
+    }
+    return {};
+};
+
 const getClientIp = (req) => {
     const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
     return forwarded || req.socket?.remoteAddress || 'unknown';
@@ -672,7 +687,7 @@ app.get('/api/admin/os', requireAdmin, async (req, res) => {
 
         const normalized = result.rows
             .map((row) => {
-                const payload = row.payload || {};
+                const payload = normalizeOsPayload(row.payload);
                 return {
                     osId: row.os_id,
                     payload,
@@ -716,14 +731,15 @@ app.patch('/api/admin/os/:osId/status', requireAdmin, async (req, res) => {
         }
 
         const payload = selected.rows[0].payload || {};
-        payload.status = parsed.data.status;
+        const normalizedPayload = normalizeOsPayload(payload);
+        normalizedPayload.status = parsed.data.status;
 
         await pool.query(
             `UPDATE os_records
              SET payload = $2,
                  updated_at = NOW()
              WHERE os_id = $1`,
-            [osId, JSON.stringify(payload)]
+            [osId, JSON.stringify(normalizedPayload)]
         );
 
         return sendSuccess(res);

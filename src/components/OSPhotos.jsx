@@ -2,14 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
 import { getPhoto } from '../services/storage';
 
-export function OSPhotos({ osId, photoIds }) {
+export function OSPhotos({ osId, photoIds = [], photosMeta = [] }) {
     const [previews, setPreviews] = useState([]);
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         // Cleanup function for memory management (Memory Leak Fix)
         return () => {
-            previews.forEach(url => URL.revokeObjectURL(url));
+            previews.forEach((url) => {
+                if (String(url).startsWith('blob:')) {
+                    URL.revokeObjectURL(url);
+                }
+            });
         };
     }, [previews]);
 
@@ -18,14 +22,24 @@ export function OSPhotos({ osId, photoIds }) {
         setLoading(true);
 
         try {
-            // Parallel loading (Performance Upgrade)
-            const blobs = await Promise.all(
-                photoIds.map(id => getPhoto(id))
+            const photoSources = photosMeta.length > 0
+                ? photosMeta
+                : photoIds.map((id) => ({ id }));
+
+            const loaded = await Promise.all(
+                photoSources.map(async (item) => {
+                    const localBlob = item.id ? await getPhoto(item.id) : null;
+                    if (localBlob) {
+                        return URL.createObjectURL(localBlob);
+                    }
+                    if (item.url) {
+                        return item.url;
+                    }
+                    return null;
+                })
             );
 
-            const newPreviews = blobs
-                .filter(Boolean)
-                .map(blob => URL.createObjectURL(blob));
+            const newPreviews = loaded.filter(Boolean);
 
             setPreviews(newPreviews);
         } catch (error) {
@@ -44,7 +58,7 @@ export function OSPhotos({ osId, photoIds }) {
                 disabled={loading}
             >
                 <ImageIcon size={14} style={{ marginRight: '6px' }} />
-                {loading ? 'Carregando...' : `Ver Fotos (${photoIds.length})`}
+                {loading ? 'Carregando...' : `Ver Fotos (${photosMeta.length || photoIds.length})`}
             </button>
 
             <div className="photo-grid">
