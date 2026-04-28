@@ -233,7 +233,7 @@ function OSForm({ onSuccess, currentUser }) {
                         </div>
                         <div>
                             <p>{label}</p>
-                            <strong>{value}</strong>
+                            <strong title={value}>{value}</strong>
                         </div>
                     </article>
                 ))}
