@@ -208,6 +208,11 @@ const clearLoginAttempt = (key) => {
     loginAttemptStore.delete(key);
 };
 
+const toDbDateTime = (value) => {
+    const date = value instanceof Date ? value : new Date(value);
+    return date.toISOString().slice(0, 19).replace('T', ' ');
+};
+
 const setSessionCookie = (res, sessionId, expiresAt) => {
     res.cookie(sessionCookieName, sessionId, {
         httpOnly: true,
@@ -233,7 +238,7 @@ const createSession = async (userId) => {
 
     await pool.query(
         `INSERT INTO auth_sessions (id, user_id, expires_at) VALUES ($1, $2, $3)`,
-        [sessionId, userId, expiresAt.toISOString()]
+        [sessionId, userId, toDbDateTime(expiresAt)]
     );
 
     return { sessionId, expiresAt };
