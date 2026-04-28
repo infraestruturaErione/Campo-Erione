@@ -18,6 +18,8 @@ import { createOS } from '../services/osService';
 import { useToast } from './ui/ToastProvider';
 
 const DRAFT_KEY = 'appcampo_os_draft_v1';
+const MAX_UPLOAD_BYTES = 1024 * 1024;
+const IMAGE_MIME_TYPE = 'image/jpeg';
 
 const INITIAL_FORM_STATE = {
     responsavelMotiva: '',
@@ -30,6 +32,85 @@ const INITIAL_FORM_STATE = {
     descricao: '',
     ocorrencias: '',
     status: 'Em andamento',
+};
+
+const readBlobAsDataUrl = (blob) =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+
+const loadImageElement = (file) =>
+    new Promise((resolve, reject) => {
+        const objectUrl = URL.createObjectURL(file);
+        const image = new Image();
+        image.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve(image);
+        };
+        image.onerror = (error) => {
+            URL.revokeObjectURL(objectUrl);
+            reject(error);
+        };
+        image.src = objectUrl;
+    });
+
+const canvasToBlob = (canvas, quality) =>
+    new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+            if (!blob) {
+                reject(new Error('Nao foi possivel converter a imagem.'));
+                return;
+            }
+            resolve(blob);
+        }, IMAGE_MIME_TYPE, quality);
+    });
+
+const compressImageToLimit = async (file, maxBytes = MAX_UPLOAD_BYTES) => {
+    if (!(file instanceof Blob)) {
+        throw new Error('Arquivo de imagem invalido.');
+    }
+
+    if (file.size <= maxBytes && String(file.type || '').startsWith('image/')) {
+        return file;
+    }
+
+    const image = await loadImageElement(file);
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) {
+        throw new Error('Nao foi possivel processar a imagem.');
+    }
+
+    let scale = 1;
+    const maxDimension = 1600;
+    const largestSide = Math.max(image.width, image.height);
+    if (largestSide > maxDimension) {
+        scale = maxDimension / largestSide;
+    }
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+        const width = Math.max(320, Math.round(image.width * scale));
+        const height = Math.max(320, Math.round(image.height * scale));
+        canvas.width = width;
+        canvas.height = height;
+        context.clearRect(0, 0, width, height);
+        context.drawImage(image, 0, 0, width, height);
+
+        const qualitySteps = [0.88, 0.78, 0.68, 0.58, 0.48, 0.38];
+        for (const quality of qualitySteps) {
+            const blob = await canvasToBlob(canvas, quality);
+            if (blob.size <= maxBytes) {
+                return blob;
+            }
+        }
+
+        scale *= 0.8;
+    }
+
+    throw new Error('A imagem nao conseguiu ser reduzida para 1 MB. Tente outra foto.');
 };
 
 function OSForm({ onSuccess, currentUser }) {
@@ -70,26 +151,23 @@ function OSForm({ onSuccess, currentUser }) {
         try {
             const newPhotos = await Promise.all(
                 files.map(
-                    (file) =>
-                        new Promise((resolve, reject) => {
-                            const reader = new FileReader();
-                            reader.onload = () =>
-                                    resolve({
-                                        id: crypto.randomUUID(),
-                                        preview: reader.result,
-                                        file,
-                                        note: '',
-                                    });
-                            reader.onerror = reject;
-                            reader.readAsDataURL(file);
-                        })
+                    async (file) => {
+                        const compressedFile = await compressImageToLimit(file);
+                        const preview = await readBlobAsDataUrl(compressedFile);
+                        return {
+                            id: crypto.randomUUID(),
+                            preview,
+                            file: compressedFile,
+                            note: '',
+                        };
+                    }
                 )
             );
 
             setPhotos((prev) => [...prev, ...newPhotos]);
         } catch (error) {
             console.error('Erro ao processar fotos:', error);
-            toast.error('Nao foi possivel carregar uma ou mais imagens.', 'Fotos');
+            toast.error(error.message || 'Nao foi possivel carregar uma ou mais imagens.', 'Fotos');
         }
     };
 

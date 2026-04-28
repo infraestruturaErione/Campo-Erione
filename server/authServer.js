@@ -15,6 +15,8 @@ const sessionTtlHours = Number(process.env.SESSION_TTL_HOURS || 24);
 const sessionCookieName = process.env.AUTH_COOKIE_NAME || 'appcampo_sid';
 const appBaseUrl = String(process.env.APP_BASE_URL || '').trim().replace(/\/$/, '');
 const isProduction = process.env.NODE_ENV === 'production';
+const maxUploadBytes = Number(process.env.AUTH_MAX_UPLOAD_BYTES || 1024 * 1024);
+const jsonBodyLimit = process.env.AUTH_JSON_LIMIT || '3mb';
 const loginRateLimitWindowMs = Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
 const loginRateLimitMaxAttempts = Number(process.env.AUTH_RATE_LIMIT_MAX_ATTEMPTS || 8);
 const rawAllowedOrigins = String(process.env.AUTH_ALLOWED_ORIGINS || '')
@@ -115,11 +117,11 @@ app.use((req, res, next) => {
     return next();
 });
 
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: jsonBodyLimit }));
 app.use(cookieParser());
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 15 * 1024 * 1024 },
+    limits: { fileSize: maxUploadBytes },
 });
 
 const loginSchema = z.object({
@@ -169,7 +171,7 @@ const mediaUploadBase64Schema = z.object({
     osId: z.string().trim().min(1).max(120),
     fileName: z.string().trim().min(1).max(255),
     mimeType: z.string().trim().min(1).max(120),
-    base64: z.string().trim().min(16).max(25 * 1024 * 1024 * 2),
+    base64: z.string().trim().min(16).max(maxUploadBytes * 2),
 });
 
 const toSafeUser = (row) => ({
@@ -635,8 +637,8 @@ app.post('/api/media/upload-base64', requireAuth, async (req, res) => {
             return sendError(res, 400, 'Imagem vazia ou invalida');
         }
 
-        if (buffer.length > 15 * 1024 * 1024) {
-            return sendError(res, 400, 'Imagem excede o limite de 15MB');
+        if (buffer.length > maxUploadBytes) {
+            return sendError(res, 413, 'Imagem excede o limite de 1 MB');
         }
 
         const uploaded = await uploadImageToBucket({
@@ -732,6 +734,14 @@ app.patch('/api/admin/os/:osId/status', requireAdmin, async (req, res) => {
 });
 
 app.use((error, _req, res, _next) => {
+    if (error?.type === 'entity.too.large') {
+        return sendError(res, 413, 'Payload excede o limite permitido para sincronizacao');
+    }
+
+    if (error?.code === 'LIMIT_FILE_SIZE') {
+        return sendError(res, 413, 'Imagem excede o limite de 1 MB');
+    }
+
     if (error instanceof SyntaxError && 'body' in error) {
         return sendError(res, 400, 'JSON invalido na requisicao');
     }
