@@ -165,6 +165,13 @@ const statusUpdateSchema = z.object({
     status: z.string().trim().min(3).max(40),
 });
 
+const mediaUploadBase64Schema = z.object({
+    osId: z.string().trim().min(1).max(120),
+    fileName: z.string().trim().min(1).max(255),
+    mimeType: z.string().trim().min(1).max(120),
+    base64: z.string().trim().min(16).max(25 * 1024 * 1024 * 2),
+});
+
 const toSafeUser = (row) => ({
     id: row.id,
     name: row.name,
@@ -606,6 +613,43 @@ app.post('/api/media/upload', requireAuth, upload.single('file'), async (req, re
         }, 201);
     } catch (error) {
         console.error('Erro ao enviar imagem para bucket', error);
+        return sendError(res, 500, 'Falha ao enviar imagem');
+    }
+});
+
+app.post('/api/media/upload-base64', requireAuth, async (req, res) => {
+    const parsed = mediaUploadBase64Schema.safeParse(req.body);
+    if (!parsed.success) {
+        return sendError(res, 400, parsed.error.issues[0]?.message || 'Payload de imagem invalido');
+    }
+
+    const { osId, fileName, mimeType, base64 } = parsed.data;
+    if (!mimeType.startsWith('image/')) {
+        return sendError(res, 400, 'Somente imagem pode ser enviada');
+    }
+
+    try {
+        const normalizedBase64 = base64.includes(',') ? base64.split(',').pop() : base64;
+        const buffer = Buffer.from(normalizedBase64 || '', 'base64');
+        if (!buffer.length) {
+            return sendError(res, 400, 'Imagem vazia ou invalida');
+        }
+
+        if (buffer.length > 15 * 1024 * 1024) {
+            return sendError(res, 400, 'Imagem excede o limite de 15MB');
+        }
+
+        const uploaded = await uploadImageToBucket({
+            buffer,
+            mimeType,
+            filename: fileName,
+            osId,
+            uploadedBy: req.user.id,
+        });
+
+        return sendSuccess(res, uploaded, 201);
+    } catch (error) {
+        console.error('Erro no upload base64', error);
         return sendError(res, 500, 'Falha ao enviar imagem');
     }
 });

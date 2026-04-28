@@ -1,13 +1,15 @@
+import { CapacitorHttp } from '@capacitor/core';
 import { getOSList, saveOS } from './storage';
 import { logProgress } from './progressLog';
 import { emitOSUpdated } from '../events/eventBus';
-import { buildAuthHeaders, fetchWithTimeout, withApiBase } from './apiConfig';
+import { buildAuthHeaders, fetchWithTimeout, isNativeApiRuntime, withApiBase } from './apiConfig';
 import { getStoredPhotoBlob } from './photoBlob';
 
 const SYNC_QUEUE_KEY = 'appcampo_sync_queue_v1';
 const SYNC_STATE_KEY = 'appcampo_sync_state_v1';
 const SYNC_ENDPOINT = import.meta.env.VITE_SYNC_ENDPOINT || withApiBase('/api/sync/os');
 const MEDIA_UPLOAD_ENDPOINT = withApiBase('/api/media/upload');
+const MEDIA_UPLOAD_NATIVE_ENDPOINT = withApiBase('/api/media/upload-base64');
 let syncInFlight = false;
 
 const safeParse = (value, fallback) => {
@@ -26,6 +28,19 @@ const loadQueue = () => {
 const saveQueue = (queue) => {
     localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(queue));
     return queue;
+};
+
+const parseResponseError = async (response, fallbackMessage) => {
+    const payload = await response.json().catch(() => null);
+    return payload?.error || fallbackMessage;
+};
+
+const parseNativeResponseError = (response, fallbackMessage) => {
+    const payload = response?.data;
+    if (payload && typeof payload === 'object' && payload.error) {
+        return payload.error;
+    }
+    return fallbackMessage;
 };
 
 const saveSyncState = (state) => {
@@ -100,6 +115,22 @@ export const queueOSDelete = (os) => {
 };
 
 const sendSyncOperation = async (operation) => {
+    if (isNativeApiRuntime) {
+        const response = await CapacitorHttp.post({
+            url: SYNC_ENDPOINT,
+            headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
+            data: operation,
+            connectTimeout: 15000,
+            readTimeout: 15000,
+        });
+
+        if (response.status < 200 || response.status >= 300) {
+            throw new Error(parseNativeResponseError(response, `Falha HTTP ${response.status}`));
+        }
+
+        return;
+    }
+
     const response = await fetchWithTimeout(SYNC_ENDPOINT, {
         method: 'POST',
         headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
@@ -108,11 +139,43 @@ const sendSyncOperation = async (operation) => {
     }, 15000);
 
     if (!response.ok) {
-        throw new Error(`Falha HTTP ${response.status}`);
+        throw new Error(await parseResponseError(response, `Falha HTTP ${response.status}`));
     }
 };
 
+const blobToBase64 = async (blob) => {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    let binary = '';
+    for (let index = 0; index < bytes.length; index += 1) {
+        binary += String.fromCharCode(bytes[index]);
+    }
+    return btoa(binary);
+};
+
 const uploadPhotoToBucket = async ({ osId, photoMeta, blob }) => {
+    if (isNativeApiRuntime) {
+        const extension = blob.type === 'image/png' ? 'png' : 'jpg';
+        const filename = `${photoMeta.id || crypto.randomUUID()}.${extension}`;
+        const response = await CapacitorHttp.post({
+            url: MEDIA_UPLOAD_NATIVE_ENDPOINT,
+            headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
+            data: {
+                osId,
+                fileName: filename,
+                mimeType: blob.type || 'image/jpeg',
+                base64: await blobToBase64(blob),
+            },
+            connectTimeout: 30000,
+            readTimeout: 30000,
+        });
+
+        if (response.status < 200 || response.status >= 300) {
+            throw new Error(parseNativeResponseError(response, `Falha no upload da imagem (HTTP ${response.status})`));
+        }
+
+        return response.data;
+    }
+
     const formData = new FormData();
     const extension = blob.type === 'image/png' ? 'png' : 'jpg';
     const filename = `${photoMeta.id || crypto.randomUUID()}.${extension}`;
@@ -127,7 +190,7 @@ const uploadPhotoToBucket = async ({ osId, photoMeta, blob }) => {
     }, 30000);
 
     if (!response.ok) {
-        throw new Error(`Falha no upload da imagem (HTTP ${response.status})`);
+        throw new Error(await parseResponseError(response, `Falha no upload da imagem (HTTP ${response.status})`));
     }
 
     return response.json();
@@ -227,7 +290,7 @@ export const syncPendingOperations = async () => {
         saveSyncState({
             pending: queue.length,
             lastResult: 'error',
-            message: 'Falha ao sincronizar, fila mantida',
+            message: error instanceof Error && error.message ? error.message : 'Falha ao sincronizar, fila mantida',
         });
         return getSyncState();
     } finally {
