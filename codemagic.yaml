@@ -25,6 +25,10 @@ workflows:
         script: |
           npx cap sync android
 
+      - name: Patch Capacitor Java compatibility
+        script: |
+          node scripts/patch-capacitor-java.mjs
+
       - name: Build Android debug APK
         script: |
           cd android
