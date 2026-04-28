@@ -7,7 +7,7 @@ Aplicacao web e mobile para operacao de campo, relatorios tecnicos, fotos, sincr
 - Frontend: React + Vite
 - Mobile: Capacitor Android
 - Backend: Node.js + Express
-- Banco: PostgreSQL
+- Banco: MariaDB
 - Armazenamento de imagem: S3 compativel (Linode/Akamai ou equivalente)
 
 ## Principais recursos
@@ -34,7 +34,7 @@ Copie `.env.example` para `.env` em desenvolvimento e use `.env.production.examp
 - `SESSION_TTL_HOURS`
 - `AUTH_RATE_LIMIT_WINDOW_MS`
 - `AUTH_RATE_LIMIT_MAX_ATTEMPTS`
-- `PG_SSLMODE`
+- `DB_SSLMODE`
 - `AUTH_ALLOWED_ORIGINS`
 - `S3_ENDPOINT`
 - `S3_REGION`
@@ -46,7 +46,7 @@ Copie `.env.example` para `.env` em desenvolvimento e use `.env.production.examp
 ## Desenvolvimento local
 
 1. `npm install`
-2. Configurar PostgreSQL
+2. Configurar MariaDB
 3. Criar `.env`
 4. Terminal 1: `npm run dev:api`
 5. Terminal 2: `npm run dev:web`
@@ -84,7 +84,7 @@ Subida sugerida:
 
 Servicos:
 
-- `db`: PostgreSQL
+- `db`: MariaDB
 - `api`: backend Express
 - `web`: Nginx servindo o build e fazendo proxy de `/api`
 
@@ -116,6 +116,6 @@ Tambem e necessario:
 
 - Em producao, prefira `HTTPS`
 - Defina `NODE_ENV=production`
-- Use credenciais fortes para PostgreSQL e S3
+- Use credenciais fortes para MariaDB e S3
 - Revise CORS com o dominio final antes do deploy
 - Gere `AAB` assinado para a Play Store

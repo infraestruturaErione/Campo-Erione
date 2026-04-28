@@ -545,23 +545,23 @@ app.post('/api/sync/os', requireAuth, async (req, res) => {
         if (operation.type === 'UPSERT') {
             await pool.query(
                 `INSERT INTO os_records (os_id, payload, submitted_by, last_operation, deleted_at, created_at, updated_at)
-                 VALUES ($1, $2::jsonb, $3, 'UPSERT', NULL, NOW(), NOW())
-                 ON CONFLICT (os_id)
-                 DO UPDATE SET payload = EXCLUDED.payload,
-                               submitted_by = EXCLUDED.submitted_by,
-                               last_operation = 'UPSERT',
-                               deleted_at = NULL,
-                               updated_at = NOW()`,
+                 VALUES ($1, $2, $3, 'UPSERT', NULL, NOW(), NOW())
+                 ON DUPLICATE KEY UPDATE payload = VALUES(payload),
+                                         submitted_by = VALUES(submitted_by),
+                                         last_operation = 'UPSERT',
+                                         deleted_at = NULL,
+                                         updated_at = NOW()`,
                 [operation.osId, JSON.stringify(operation.payload || {}), req.user.id]
             );
         } else {
             await pool.query(
                 `INSERT INTO os_records (os_id, payload, submitted_by, last_operation, deleted_at, created_at, updated_at)
-                 VALUES ($1, '{}'::jsonb, $2, 'DELETE', NOW(), NOW(), NOW())
-                 ON CONFLICT (os_id)
-                 DO UPDATE SET last_operation = 'DELETE',
-                               deleted_at = NOW(),
-                               updated_at = NOW()`,
+                 VALUES ($1, '{}', $2, 'DELETE', NOW(), NOW(), NOW())
+                 ON DUPLICATE KEY UPDATE payload = VALUES(payload),
+                                         submitted_by = VALUES(submitted_by),
+                                         last_operation = 'DELETE',
+                                         deleted_at = NOW(),
+                                         updated_at = NOW()`,
                 [operation.osId, req.user.id]
             );
         }
@@ -669,7 +669,7 @@ app.patch('/api/admin/os/:osId/status', requireAdmin, async (req, res) => {
 
         await pool.query(
             `UPDATE os_records
-             SET payload = $2::jsonb,
+             SET payload = $2,
                  updated_at = NOW()
              WHERE os_id = $1`,
             [osId, JSON.stringify(payload)]

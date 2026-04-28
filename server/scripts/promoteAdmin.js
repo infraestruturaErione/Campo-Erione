@@ -8,20 +8,27 @@ if (!username) {
 }
 
 const run = async () => {
-    const result = await pool.query(
+    const update = await pool.query(
         `UPDATE users
          SET role = 'admin', updated_at = NOW()
-         WHERE LOWER(username) = $1
-         RETURNING id, username, role`,
+         WHERE LOWER(username) = $1`,
         [username]
     );
 
-    if (result.rowCount === 0) {
+    if (update.rowCount === 0) {
         console.error(`Usuario nao encontrado: ${username}`);
         process.exit(1);
     }
 
-    console.log(`Usuario promovido: ${result.rows[0].username} (${result.rows[0].role})`);
+    const selected = await pool.query(
+        `SELECT id, username, role
+         FROM users
+         WHERE LOWER(username) = $1
+         LIMIT 1`,
+        [username]
+    );
+
+    console.log(`Usuario promovido: ${selected.rows[0].username} (${selected.rows[0].role})`);
     await pool.end();
 };
 

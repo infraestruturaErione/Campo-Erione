@@ -40,7 +40,7 @@
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.576.0",
     "multer": "^2.1.1",
-    "pg": "^8.16.3",
+    "mysql2": "^3.15.2",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-window": "^2.2.7",
