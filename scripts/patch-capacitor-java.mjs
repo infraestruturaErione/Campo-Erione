@@ -19,7 +19,7 @@ const collectGradleFiles = (dir, bucket) => {
             collectGradleFiles(fullPath, bucket);
             continue;
         }
-        if (entry.isFile() && entry.name === 'build.gradle') {
+        if (entry.isFile() && (entry.name === 'build.gradle' || entry.name === 'build.gradle.kts')) {
             bucket.add(fullPath);
         }
     }
@@ -38,6 +38,14 @@ for (const file of files) {
     const original = fs.readFileSync(file, 'utf8');
     const patched = original
         .replaceAll('JavaVersion.VERSION_21', 'JavaVersion.VERSION_17')
+        .replaceAll('JvmTarget.JVM_21', 'JvmTarget.JVM_17')
+        .replaceAll('jvmTarget = "21"', 'jvmTarget = "17"')
+        .replaceAll("jvmTarget = '21'", "jvmTarget = '17'")
+        .replaceAll('jvmTarget.set("21")', 'jvmTarget.set("17")')
+        .replaceAll("jvmTarget.set('21')", "jvmTarget.set('17')")
+        .replaceAll('JavaLanguageVersion.of(21)', 'JavaLanguageVersion.of(17)')
+        .replaceAll('jvmToolchain(21)', 'jvmToolchain(17)')
+        .replaceAll('kotlin.jvmToolchain(21)', 'kotlin.jvmToolchain(17)')
         .replaceAll("getDefaultProguardFile('proguard-android.txt')", "getDefaultProguardFile('proguard-android-optimize.txt')");
 
     if (patched !== original) {
