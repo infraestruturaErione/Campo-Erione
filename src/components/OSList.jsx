@@ -2,26 +2,59 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { getOSList } from '../services/storage';
 import { OSCard } from './OSCard';
 import { subscribe, EVENTS } from '../events/eventBus';
+import { fetchAdminOS } from '../services/adminService';
+import { useToast } from './ui/ToastProvider';
 
 const PAGE_SIZE = 10;
 
 function OSList({ currentUser }) {
+    const toast = useToast();
     const [osList, setOsList] = useState([]);
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        const load = () => {
-            const list = getOSList();
-            const visible = currentUser?.role === 'admin'
-                ? list
-                : list.filter((item) => item.ownerUserId && item.ownerUserId === currentUser?.id);
-            setOsList([...visible].reverse());
-        };
-        load();
+        let active = true;
 
-        return subscribe(EVENTS.OS_UPDATED, load);
-    }, [currentUser]);
+        const load = async () => {
+            if (currentUser?.role === 'admin') {
+                setLoading(true);
+                try {
+                    const items = await fetchAdminOS();
+                    if (active) {
+                        setOsList(items);
+                    }
+                } catch (error) {
+                    if (active) {
+                        setOsList([]);
+                        toast.error(error.message || 'Falha ao carregar historico sincronizado.', 'Historico admin');
+                    }
+                } finally {
+                    if (active) {
+                        setLoading(false);
+                    }
+                }
+                return;
+            }
+
+            const list = getOSList();
+            const visible = list.filter((item) => item.ownerUserId && item.ownerUserId === currentUser?.id);
+            if (active) {
+                setOsList([...visible].reverse());
+            }
+        };
+        void load();
+
+        const unsubscribe = subscribe(EVENTS.OS_UPDATED, () => {
+            void load();
+        });
+
+        return () => {
+            active = false;
+            unsubscribe();
+        };
+    }, [currentUser, toast]);
 
     const filteredList = useMemo(() => {
         const term = search.trim().toLowerCase();
@@ -86,7 +119,11 @@ function OSList({ currentUser }) {
                 <span className="text-muted">{filteredList.length} resultado(s)</span>
             </div>
 
-            {filteredList.length === 0 ? (
+            {loading ? (
+                <div className="card" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                    Carregando historico sincronizado...
+                </div>
+            ) : filteredList.length === 0 ? (
                 <div className="card" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
                     Nenhum relatorio encontrado.
                 </div>

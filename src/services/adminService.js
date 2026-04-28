@@ -36,6 +36,48 @@ export const fetchAdminUsers = async ({ search = '' } = {}) => {
     return payload.items || [];
 };
 
+export const fetchAdminOS = async ({ search = '', status = '' } = {}) => {
+    const query = new URLSearchParams();
+    if (search) query.set('search', search);
+    if (status) query.set('status', status);
+
+    const response = await fetchWithTimeout(`${ADMIN_BASE}/os?${query.toString()}`, {
+        headers: buildAuthHeaders(),
+        credentials: 'include',
+    }, 12000);
+
+    if (!response.ok) {
+        throw new Error(await parseError(response));
+    }
+
+    const payload = await response.json();
+    const items = payload.items || [];
+    return items.map((item) => {
+        const source = item.payload || {};
+        return {
+            ...source,
+            id: item.osId,
+            osId: item.osId,
+            status: item.status || source.status || '-',
+            obraEquipamento: item.obraEquipamento || source.obraEquipamento || '-',
+            responsavelContratada: item.responsavelContratada || source.responsavelContratada || '-',
+            responsavelMotiva: source.responsavelMotiva || '-',
+            horarioInicio: source.horarioInicio || '-',
+            horarioFim: source.horarioFim || '-',
+            local: source.local || '-',
+            descricao: source.descricao || '-',
+            ocorrencias: source.ocorrencias || '',
+            createdAt: item.createdAt || source.createdAt || item.updatedAt,
+            updatedAt: item.updatedAt || source.updatedAt || item.createdAt,
+            ownerName: source.ownerName || item.submittedBy || '-',
+            ownerUsername: source.ownerUsername || item.submittedBy || '-',
+            statusSync: 'SINCRONIZADO',
+            photoIds: Array.isArray(source.photoIds) ? source.photoIds : [],
+            photosMeta: Array.isArray(source.photosMeta) ? source.photosMeta : [],
+        };
+    });
+};
+
 export const createAdminUser = async ({ name, username, password, role }) => {
     const response = await fetchWithTimeout(`${ADMIN_BASE}/users`, {
         method: 'POST',
