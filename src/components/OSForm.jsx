@@ -8,10 +8,7 @@ import {
     Save,
     Images,
     X,
-    ClipboardList,
     ShieldCheck,
-    MapPinned,
-    CheckCircle2,
     FileText,
 } from 'lucide-react';
 import { createOS } from '../services/osService';
@@ -252,29 +249,6 @@ function OSForm({ onSuccess, currentUser }) {
         }
     };
 
-    const summaryItems = [
-        {
-            label: 'Responsavel Erione',
-            value: formData.responsavelMotiva || 'Nao informado',
-            icon: ClipboardList,
-        },
-        {
-            label: 'Responsavel contratada',
-            value: formData.responsavelContratada || 'Nao informado',
-            icon: ShieldCheck,
-        },
-        {
-            label: 'Obra e local',
-            value: `${formData.obraEquipamento || 'Nao informado'}${formData.local ? ` • ${formData.local}` : ''}`,
-            icon: MapPinned,
-        },
-        {
-            label: 'Status operacional',
-            value: formData.status || 'Em andamento',
-            icon: CheckCircle2,
-        },
-    ];
-
     return (
         <div className="card field-mode-card">
             <div className="wizard-header">
@@ -301,20 +275,6 @@ function OSForm({ onSuccess, currentUser }) {
                     <span className="soft-badge">{photos.length} foto(s)</span>
                     <span className="soft-badge">{formData.status}</span>
                 </div>
-            </div>
-
-            <div className="field-summary-grid">
-                {summaryItems.map(({ label, value, icon: Icon }) => (
-                    <article key={label} className="field-summary-card">
-                        <div className="field-summary-icon">
-                            <Icon size={16} />
-                        </div>
-                        <div>
-                            <p>{label}</p>
-                            <strong title={value}>{value}</strong>
-                        </div>
-                    </article>
-                ))}
             </div>
 
             <div className="photo-quick-panel">
