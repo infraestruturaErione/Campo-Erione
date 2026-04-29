@@ -54,6 +54,7 @@ export async function createOS(formData, photos, currentUser) {
                 return {
                     id: photoId,
                     note: String(photo.note || '').trim(),
+                    capturedAt: photo.capturedAt || new Date().toISOString(),
                 };
             })
         );

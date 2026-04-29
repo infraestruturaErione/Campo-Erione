@@ -76,7 +76,7 @@ const buildExcelWorkbook = async (os) => {
     }, theme);
 
     drawRow(worksheet, 6, {
-        label1: 'OBRA/EQUIPAMENTO:', value1: os.obraEquipamento || '-', mergeEnd1: 6,
+        label1: 'OBRA:', value1: os.obraEquipamento || '-', mergeEnd1: 6,
     }, theme);
 
     drawRow(worksheet, 7, {

@@ -89,6 +89,13 @@ const fetchRemotePhotoDataUrl = async (photoMeta) => {
     }
 };
 
+const formatPhotoTimestamp = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString('pt-BR');
+};
+
 const buildPdfDocument = async (os) => {
     const doc = new jsPDF();
     const margin = 14;
@@ -160,7 +167,7 @@ const buildPdfDocument = async (os) => {
     drawInfoBox('RESPONSAVEL CONTRATADA', os.responsavelContratada, margin, currentY, contentWidth);
     currentY += 19;
 
-    drawInfoBox('OBRA / EQUIPAMENTO', os.obraEquipamento, margin, currentY, contentWidth);
+    drawInfoBox('OBRA', os.obraEquipamento, margin, currentY, contentWidth);
     currentY += 19;
 
     const halfWidth = (contentWidth - gap) / 2;
@@ -229,6 +236,7 @@ const buildPdfDocument = async (os) => {
                 return {
                     base64,
                     note: String(item.note || '').trim(),
+                    capturedAt: item.capturedAt || '',
                 };
             })
         );
@@ -245,7 +253,8 @@ const buildPdfDocument = async (os) => {
 
             doc.setFillColor(248, 250, 252);
             doc.rect(photoX, currentY + photoHeight, photoWidth, 8, 'F');
-            const noteLabel = fitTextInWidth(doc, `Observacao: ${currentPhoto.note || '-'}`, photoWidth - 3);
+            const timestamp = formatPhotoTimestamp(currentPhoto.capturedAt);
+            const noteLabel = fitTextInWidth(doc, `${timestamp ? `${timestamp} | ` : ''}Obs: ${currentPhoto.note || '-'}`, photoWidth - 3);
             doc.setFontSize(8);
             doc.setFont(undefined, 'normal');
             doc.setTextColor(15, 23, 42);

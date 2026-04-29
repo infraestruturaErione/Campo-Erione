@@ -31,6 +31,13 @@ const INITIAL_FORM_STATE = {
     status: 'Em andamento',
 };
 
+const formatPhotoTimestamp = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString('pt-BR');
+};
+
 const readBlobAsDataUrl = (blob) =>
     new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -156,6 +163,7 @@ function OSForm({ onSuccess, currentUser }) {
                             preview,
                             file: compressedFile,
                             note: '',
+                            capturedAt: new Date().toISOString(),
                         };
                     }
                 )
@@ -351,7 +359,7 @@ function OSForm({ onSuccess, currentUser }) {
                         </div>
 
                         <div className="form-group">
-                            <label>OBRA/EQUIPAMENTO</label>
+                            <label>OBRA</label>
                             <input
                                 name="obraEquipamento"
                                 required
@@ -453,7 +461,7 @@ function OSForm({ onSuccess, currentUser }) {
                                         <strong>{formData.responsavelContratada || 'Nao informado'}</strong>
                                     </div>
                                     <div>
-                                        <span>Obra/Equipamento</span>
+                                        <span>Obra</span>
                                         <strong>{formData.obraEquipamento || 'Nao informado'}</strong>
                                     </div>
                                     <div>
@@ -490,6 +498,7 @@ function OSForm({ onSuccess, currentUser }) {
                                                 <img src={photo.preview} alt={`Foto ${index + 1}`} />
                                                 <div>
                                                     <strong>Foto {String(index + 1).padStart(2, '0')}</strong>
+                                                    {photo.capturedAt && <span>{formatPhotoTimestamp(photo.capturedAt)}</span>}
                                                     <p>{photo.note?.trim() || 'Sem observacao registrada.'}</p>
                                                 </div>
                                             </div>

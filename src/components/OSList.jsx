@@ -4,13 +4,32 @@ import { OSCard } from './OSCard';
 import { subscribe, EVENTS } from '../events/eventBus';
 import { fetchAdminOS } from '../services/adminService';
 import { useToast } from './ui/ToastProvider';
+import { CalendarDays, X } from 'lucide-react';
 
 const PAGE_SIZE = 10;
+
+const toDateInputValue = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const openNativeDatePicker = (event) => {
+    if (typeof event.currentTarget.showPicker === 'function') {
+        event.currentTarget.showPicker();
+    }
+};
 
 function OSList({ currentUser }) {
     const toast = useToast();
     const [osList, setOsList] = useState([]);
     const [search, setSearch] = useState('');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(false);
 
@@ -58,11 +77,12 @@ function OSList({ currentUser }) {
 
     const filteredList = useMemo(() => {
         const term = search.trim().toLowerCase();
-        if (!term) {
-            return osList;
-        }
-
         return osList.filter((item) => {
+            const itemDate = toDateInputValue(item.createdAt);
+            if (startDate && (!itemDate || itemDate < startDate)) return false;
+            if (endDate && (!itemDate || itemDate > endDate)) return false;
+            if (!term) return true;
+
             const haystack = [
                 item.obraEquipamento,
                 item.responsavelContratada,
@@ -79,7 +99,7 @@ function OSList({ currentUser }) {
 
             return haystack.includes(term);
         });
-    }, [osList, search]);
+    }, [osList, search, startDate, endDate]);
 
     const totalPages = Math.max(1, Math.ceil(filteredList.length / PAGE_SIZE));
 
@@ -91,7 +111,7 @@ function OSList({ currentUser }) {
 
     useEffect(() => {
         setPage(1);
-    }, [search]);
+    }, [search, startDate, endDate]);
 
     useEffect(() => {
         if (page > totalPages) {
@@ -116,6 +136,46 @@ function OSList({ currentUser }) {
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                 />
+                {currentUser?.role === 'admin' && (
+                    <div className="history-date-filters">
+                        <label>
+                            <CalendarDays size={16} />
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={(event) => setStartDate(event.target.value)}
+                                onClick={openNativeDatePicker}
+                                onFocus={openNativeDatePicker}
+                                aria-label="Data inicial"
+                            />
+                        </label>
+                        <label>
+                            <CalendarDays size={16} />
+                            <input
+                                type="date"
+                                value={endDate}
+                                min={startDate || undefined}
+                                onChange={(event) => setEndDate(event.target.value)}
+                                onClick={openNativeDatePicker}
+                                onFocus={openNativeDatePicker}
+                                aria-label="Data final"
+                            />
+                        </label>
+                        {(startDate || endDate) && (
+                            <button
+                                type="button"
+                                className="icon-btn history-clear-date"
+                                onClick={() => {
+                                    setStartDate('');
+                                    setEndDate('');
+                                }}
+                                aria-label="Limpar filtro de datas"
+                            >
+                                <X size={16} />
+                            </button>
+                        )}
+                    </div>
+                )}
                 <span className="text-muted">{filteredList.length} resultado(s)</span>
             </div>
 

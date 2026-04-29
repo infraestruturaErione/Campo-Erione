@@ -37,7 +37,7 @@ export function OSCard({ os, showCreator = false }) {
                     <p>{os.responsavelContratada}</p>
                 </div>
                 <div>
-                    <label>Obra/Equipamento</label>
+                    <label>Obra</label>
                     <p>{os.obraEquipamento}</p>
                 </div>
             </div>

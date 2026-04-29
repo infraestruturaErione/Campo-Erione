@@ -56,7 +56,7 @@ export function OSActions({ os }) {
             'RELATORIO DIARIO DE OBRAS',
             '',
             `Checklist da OS #${String(os.id || '').slice(-6)}`,
-            `[x] Obra/Equipamento: ${os.obraEquipamento || '-'}`,
+            `[x] Obra: ${os.obraEquipamento || '-'}`,
             `[x] Responsavel Erione: ${os.responsavelMotiva || '-'}`,
             `[x] Responsavel Contratada: ${os.responsavelContratada || '-'}`,
             `[x] Data: ${new Date(os.createdAt).toLocaleDateString('pt-BR')}`,

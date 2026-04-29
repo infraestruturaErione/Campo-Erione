@@ -52,6 +52,13 @@ const fetchRemotePhotoBuffer = async (photoMeta) => {
     }
 };
 
+const formatPhotoTimestamp = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString('pt-BR');
+};
+
 export const addLogo = async (workbook, worksheet) => {
     try {
         const logoUrl = '/logo_motiva.png';
@@ -97,6 +104,7 @@ export const drawPhotos = async (workbook, worksheet, os, startRow, theme) => {
                         buffer: await blob.arrayBuffer(),
                         extension: blob.type === 'image/png' ? 'png' : 'jpeg',
                         note: String(item.note || '').trim(),
+                        capturedAt: item.capturedAt || '',
                     };
                 }
 
@@ -104,6 +112,7 @@ export const drawPhotos = async (workbook, worksheet, os, startRow, theme) => {
                     buffer: await convertBlobToJpegBuffer(blob),
                     extension: 'jpeg',
                     note: String(item.note || '').trim(),
+                    capturedAt: item.capturedAt || '',
                 };
             }
 
@@ -112,6 +121,7 @@ export const drawPhotos = async (workbook, worksheet, os, startRow, theme) => {
             return {
                 ...remote,
                 note: String(item.note || '').trim(),
+                capturedAt: item.capturedAt || '',
             };
         })
     );
@@ -159,7 +169,10 @@ export const drawPhotos = async (workbook, worksheet, os, startRow, theme) => {
 
         worksheet.mergeCells(currentRow, colRange[0], currentRow, colRange[1]);
         const titleCell = worksheet.getCell(currentRow, colRange[0]);
-        titleCell.value = `FOTO ${String(i + 1).padStart(2, '0')}`;
+        const timestamp = formatPhotoTimestamp(image.capturedAt);
+        titleCell.value = timestamp
+            ? `FOTO ${String(i + 1).padStart(2, '0')} - ${timestamp}`
+            : `FOTO ${String(i + 1).padStart(2, '0')}`;
         titleCell.font = theme.font.noteLabel;
         titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
         titleCell.fill = theme.fill.section;

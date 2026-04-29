@@ -3,6 +3,13 @@ import { Image as ImageIcon } from 'lucide-react';
 import { getPhoto } from '../services/storage';
 import { buildPhotoAccessUrl } from '../services/photoAccess';
 
+const formatPhotoTimestamp = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString('pt-BR');
+};
+
 export function OSPhotos({ osId, photoIds = [], photosMeta = [] }) {
     const [previews, setPreviews] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -10,9 +17,9 @@ export function OSPhotos({ osId, photoIds = [], photosMeta = [] }) {
     useEffect(() => {
         // Cleanup function for memory management (Memory Leak Fix)
         return () => {
-            previews.forEach((url) => {
-                if (String(url).startsWith('blob:')) {
-                    URL.revokeObjectURL(url);
+            previews.forEach((photo) => {
+                if (String(photo?.src || '').startsWith('blob:')) {
+                    URL.revokeObjectURL(photo.src);
                 }
             });
         };
@@ -31,11 +38,19 @@ export function OSPhotos({ osId, photoIds = [], photosMeta = [] }) {
                 photoSources.map(async (item) => {
                     const localBlob = item.id ? await getPhoto(item.id) : null;
                     if (localBlob) {
-                        return URL.createObjectURL(localBlob);
+                        return {
+                            src: URL.createObjectURL(localBlob),
+                            note: item.note || '',
+                            capturedAt: item.capturedAt || '',
+                        };
                     }
                     const remoteUrl = buildPhotoAccessUrl(item);
                     if (remoteUrl) {
-                        return remoteUrl;
+                        return {
+                            src: remoteUrl,
+                            note: item.note || '',
+                            capturedAt: item.capturedAt || '',
+                        };
                     }
                     return null;
                 })
@@ -64,14 +79,20 @@ export function OSPhotos({ osId, photoIds = [], photosMeta = [] }) {
             </button>
 
             <div className="photo-grid">
-                {previews.map((src, idx) => (
+                {previews.map((photo, idx) => (
                     <div key={`${osId}-${idx}`} className="photo-preview">
                         <img
-                            src={src}
+                            src={photo.src}
                             alt="os"
-                            onClick={() => window.open(src, '_blank', 'noopener,noreferrer')}
+                            onClick={() => window.open(photo.src, '_blank', 'noopener,noreferrer')}
                             style={{ cursor: 'zoom-in' }}
                         />
+                        {(photo.capturedAt || photo.note) && (
+                            <div className="photo-meta-caption">
+                                {photo.capturedAt && <strong>{formatPhotoTimestamp(photo.capturedAt)}</strong>}
+                                {photo.note && <span>{photo.note}</span>}
+                            </div>
+                        )}
                     </div>
                 ))}
             </div>
