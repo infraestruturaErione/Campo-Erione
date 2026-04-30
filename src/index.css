@@ -248,6 +248,36 @@ select:focus {
     object-fit: cover;
 }
 
+.photo-overlay-badges {
+    position: absolute;
+    top: 0.45rem;
+    left: 0.45rem;
+    right: 0.45rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.35rem;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.photo-overlay-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.22rem 0.42rem;
+    border-radius: 9999px;
+    background: rgba(2, 6, 23, 0.82);
+    color: #f8fafc;
+    font-size: 0.68rem;
+    font-weight: 700;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    box-shadow: 0 6px 20px rgba(2, 6, 23, 0.28);
+}
+
+.photo-overlay-badge-time {
+    margin-left: auto;
+}
+
 .os-card {
     display: flex;
     flex-direction: column;
@@ -277,6 +307,24 @@ select:focus {
     color: #dbeafe;
     font-size: 0.76rem;
     white-space: nowrap;
+}
+
+.soft-badge-success {
+    border-color: rgba(16, 185, 129, 0.45);
+    background: rgba(6, 95, 70, 0.26);
+    color: #d1fae5;
+}
+
+.soft-badge-info {
+    border-color: rgba(56, 189, 248, 0.45);
+    background: rgba(8, 47, 73, 0.34);
+    color: #bae6fd;
+}
+
+.soft-badge-warning {
+    border-color: rgba(245, 158, 11, 0.45);
+    background: rgba(120, 53, 15, 0.34);
+    color: #fde68a;
 }
 
 .os-meta-strip {
@@ -529,6 +577,11 @@ select:focus {
 
 .photo-counter {
     margin-left: auto;
+}
+
+.photo-processing-hint {
+    margin-top: 0.65rem;
+    font-size: 0.84rem;
 }
 
 .remove-photo-btn {
@@ -1085,6 +1138,33 @@ select:focus {
     align-items: center;
 }
 
+.history-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.7rem;
+    margin-bottom: 1rem;
+}
+
+.history-kpi-card {
+    border: 1px solid #2d4262;
+    border-radius: 0.9rem;
+    background: rgba(15, 23, 42, 0.52);
+    padding: 0.85rem 0.95rem;
+}
+
+.history-kpi-card span {
+    display: block;
+    font-size: 0.76rem;
+    color: #9fb3d6;
+    margin-bottom: 0.2rem;
+}
+
+.history-kpi-card strong {
+    display: block;
+    font-size: 1.45rem;
+    color: #eff6ff;
+}
+
 .admin-list {
     display: grid;
     gap: 0.75rem;
@@ -1394,6 +1474,81 @@ select:focus {
     margin-top: 1rem;
 }
 
+.photo-lightbox {
+    width: min(980px, 100%);
+    max-height: calc(100vh - 2rem);
+    overflow: hidden;
+    border-radius: 1rem;
+    border: 1px solid var(--border);
+    background: rgba(7, 17, 31, 0.98);
+    box-shadow: var(--shadow-lg);
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+}
+
+.photo-lightbox-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+    padding: 1rem 1rem 0.5rem;
+}
+
+.photo-lightbox-time {
+    margin-top: 0.35rem;
+}
+
+.photo-lightbox-frame {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 0.75rem;
+    align-items: center;
+    min-height: 0;
+    padding: 0 1rem 1rem;
+}
+
+.photo-lightbox-nav {
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 9999px;
+    border: 1px solid var(--border-soft);
+    background: rgba(15, 23, 42, 0.82);
+    color: #eff6ff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.photo-lightbox-nav:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.photo-lightbox-image {
+    width: 100%;
+    max-height: calc(100vh - 15rem);
+    object-fit: contain;
+    border-radius: 0.9rem;
+    background: rgba(2, 6, 23, 0.78);
+}
+
+.photo-lightbox-footer {
+    border-top: 1px solid var(--border);
+    padding: 0.9rem 1rem 1rem;
+    background: rgba(9, 20, 35, 0.62);
+}
+
+.photo-lightbox-footer strong {
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.photo-lightbox-footer p {
+    color: #cbd5e1;
+    white-space: pre-wrap;
+}
+
 .confirm-dialog-cancel {
     background: rgba(30, 41, 59, 0.78);
     color: #e2e8f0;
@@ -1410,6 +1565,10 @@ select:focus {
     }
 
     .admin-kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .history-kpi-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
@@ -1449,6 +1608,10 @@ select:focus {
 
 @media (max-width: 640px) {
     .admin-kpi-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .history-kpi-grid {
         grid-template-columns: 1fr;
     }
 
@@ -1556,6 +1719,16 @@ select:focus {
 
     .history-date-filters input {
         width: 100%;
+    }
+
+    .photo-lightbox-frame {
+        grid-template-columns: 1fr;
+    }
+
+    .photo-lightbox-nav {
+        width: 100%;
+        border-radius: 0.8rem;
+        min-height: 42px;
     }
 
     .admin-user-actions-row .btn {

@@ -44,10 +44,16 @@ function App() {
         const handleOnline = async () => {
             setIsOnline(true);
             setSyncing(true);
-            await syncPendingOperations();
+            const result = await syncPendingOperations();
             refreshSyncState();
             setSyncing(false);
-            toast.success('Conexao restabelecida e fila sincronizada.', 'Online');
+            if (result.lastResult === 'success') {
+                toast.success('Conexao restabelecida e fila sincronizada.', 'Online');
+            } else if (result.lastResult === 'partial') {
+                toast.info(result.message || 'A conexao voltou, mas alguns registros seguem pendentes.', 'Online');
+            } else if (result.lastResult === 'error') {
+                toast.error(result.message || 'A conexao voltou, mas a fila ainda precisa de atencao.', 'Online');
+            }
         };
 
         const handleOffline = () => {
@@ -114,6 +120,8 @@ function App() {
         setSyncing(false);
         if (nextState.lastResult === 'success') {
             toast.success('Fila sincronizada com sucesso.', 'Sincronizacao');
+        } else if (nextState.lastResult === 'partial') {
+            toast.info(nextState.message || 'Parte da fila foi enviada, mas alguns registros seguem pendentes.', 'Sincronizacao');
         } else if (nextState.lastResult === 'error') {
             toast.error(nextState.message || 'Falha ao sincronizar a fila offline.', 'Sincronizacao');
         } else if (nextState.lastResult === 'offline') {
@@ -123,7 +131,7 @@ function App() {
 
     const syncToneClass = !isOnline
         ? 'is-offline'
-        : syncState.lastResult === 'error'
+        : syncState.lastResult === 'error' || syncState.lastResult === 'partial'
             ? 'is-warning'
             : syncState.pending > 0 || syncing
                 ? 'is-pending'
@@ -133,7 +141,7 @@ function App() {
         ? 'Modo offline ativo. Seus registros continuam seguros no dispositivo.'
         : syncing
             ? 'Sincronizando dados com o servidor...'
-            : syncState.lastResult === 'error'
+            : syncState.lastResult === 'error' || syncState.lastResult === 'partial'
                 ? (syncState.message || 'Falha recente na sincronizacao. Tente novamente.')
                 : syncState.pending > 0
                     ? `${syncState.pending} item(ns) aguardando envio para a nuvem.`
@@ -141,7 +149,7 @@ function App() {
 
     const SyncStatusIcon = !isOnline
         ? CloudOff
-        : syncState.lastResult === 'error'
+        : syncState.lastResult === 'error' || syncState.lastResult === 'partial'
             ? AlertTriangle
             : syncState.pending > 0 || syncing
                 ? RefreshCcw
@@ -203,7 +211,11 @@ function App() {
                     </div>
                     <div className="sync-chip">
                         {!isOnline ? <CloudOff size={14} /> : <Cloud size={14} />}
-                        <span>{isOnline ? `${syncState.pending || 0} pend.` : 'Offline'}</span>
+                        <span>
+                            {isOnline
+                                ? `${syncState.pending || 0} pend.${syncState.failed ? ` | ${syncState.failed} erro` : ''}`
+                                : 'Offline'}
+                        </span>
                         <button className="sync-btn" onClick={handleSyncNow} disabled={syncing || !isOnline}>
                             <RefreshCcw size={14} className={syncing ? 'animate-spin' : ''} />
                             Sync
@@ -222,7 +234,17 @@ function App() {
                         <SyncStatusIcon size={18} className={syncing ? 'animate-spin' : ''} />
                     </div>
                     <div className="status-banner-copy">
-                        <strong>{!isOnline ? 'Modo offline' : syncing ? 'Sincronizando' : 'Central de operacao'}</strong>
+                        <strong>
+                            {!isOnline
+                                ? 'Modo offline'
+                                : syncing
+                                    ? 'Sincronizando'
+                                    : syncState.lastResult === 'partial'
+                                        ? 'Sincronizacao parcial'
+                                        : syncState.lastResult === 'error'
+                                            ? 'Atencao na fila'
+                                            : 'Central de operacao'}
+                        </strong>
                         <p>{syncMessage}</p>
                     </div>
                     <button className="btn status-banner-btn" onClick={handleSyncNow} disabled={syncing || !isOnline}>

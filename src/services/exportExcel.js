@@ -34,9 +34,9 @@ const buildExcelWorkbook = async (os) => {
     worksheet.views = [{ state: 'frozen', ySplit: 2, showGridLines: false }];
 
     worksheet.columns = [
-        { width: 24 },
-        { width: 18 },
-        { width: 20 },
+        { width: 22 },
+        { width: 17 },
+        { width: 17 },
         { width: 16 },
         { width: 16 },
         { width: 16 },
@@ -53,7 +53,7 @@ const buildExcelWorkbook = async (os) => {
 
     worksheet.mergeCells('C2:F2');
     const subtitleCell = worksheet.getCell('C2');
-    subtitleCell.value = 'Documento tecnico gerado pelo Erione Field';
+    subtitleCell.value = 'Documento tecnico para acompanhamento operacional e envio ao cliente';
     subtitleCell.font = theme.font.subtitle;
     subtitleCell.alignment = { horizontal: 'center', vertical: 'middle' };
     worksheet.getRow(2).height = 18;

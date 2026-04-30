@@ -10,6 +10,7 @@ import {
     X,
     ShieldCheck,
     FileText,
+    Clock3,
 } from 'lucide-react';
 import { createOS } from '../services/osService';
 import { useToast } from './ui/ToastProvider';
@@ -120,6 +121,7 @@ const compressImageToLimit = async (file, maxBytes = MAX_UPLOAD_BYTES) => {
 function OSForm({ onSuccess, currentUser }) {
     const toast = useToast();
     const [loading, setLoading] = useState(false);
+    const [processingPhotos, setProcessingPhotos] = useState(false);
     const [step, setStep] = useState(0);
     const [formData, setFormData] = useState(INITIAL_FORM_STATE);
     const [photos, setPhotos] = useState([]);
@@ -148,31 +150,36 @@ function OSForm({ onSuccess, currentUser }) {
     }, []);
 
     useEffect(() => {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify(formData));
+        const timeout = window.setTimeout(() => {
+            localStorage.setItem(DRAFT_KEY, JSON.stringify(formData));
+        }, 500);
+
+        return () => window.clearTimeout(timeout);
     }, [formData]);
 
     const processPhotoFiles = async (files) => {
+        setProcessingPhotos(true);
         try {
-            const newPhotos = await Promise.all(
-                files.map(
-                    async (file) => {
-                        const compressedFile = await compressImageToLimit(file);
-                        const preview = await readBlobAsDataUrl(compressedFile);
-                        return {
-                            id: crypto.randomUUID(),
-                            preview,
-                            file: compressedFile,
-                            note: '',
-                            capturedAt: new Date().toISOString(),
-                        };
-                    }
-                )
-            );
+            const newPhotos = [];
+            for (const file of files) {
+                await new Promise((resolve) => window.setTimeout(resolve, 0));
+                const compressedFile = await compressImageToLimit(file);
+                const preview = await readBlobAsDataUrl(compressedFile);
+                newPhotos.push({
+                    id: crypto.randomUUID(),
+                    preview,
+                    file: compressedFile,
+                    note: '',
+                    capturedAt: new Date().toISOString(),
+                });
+            }
 
             setPhotos((prev) => [...prev, ...newPhotos]);
         } catch (error) {
             console.error('Erro ao processar fotos:', error);
             toast.error(error.message || 'Nao foi possivel carregar uma ou mais imagens.', 'Fotos');
+        } finally {
+            setProcessingPhotos(false);
         }
     };
 
@@ -209,6 +216,11 @@ function OSForm({ onSuccess, currentUser }) {
                 toast.info('A descricao detalhada e obrigatoria para salvar a OS.', 'Formulario');
                 return false;
             }
+        }
+
+        if (step === 2 && photos.some((photo) => !String(photo.note || '').trim())) {
+            toast.info('Toda foto precisa ter uma observacao antes de finalizar a OS.', 'Fotos');
+            return false;
         }
 
         return true;
@@ -294,25 +306,51 @@ function OSForm({ onSuccess, currentUser }) {
                     <p className="text-muted">As observacoes das fotos seguem para PDF, Excel e compartilhamento.</p>
                 </div>
                 <div className="photo-quick-actions">
-                    <button type="button" className="btn" style={{ background: '#1e40af', color: '#fff' }} onClick={() => cameraInputRef.current?.click()}>
+                    <button
+                        type="button"
+                        className="btn"
+                        style={{ background: '#1e40af', color: '#fff' }}
+                        onClick={() => cameraInputRef.current?.click()}
+                        disabled={processingPhotos}
+                    >
                         <Camera size={18} />
-                        Tirar foto
+                        {processingPhotos ? 'Processando...' : 'Tirar foto'}
                     </button>
-                    <button type="button" className="btn" style={{ background: '#334155', color: '#fff' }} onClick={() => galleryInputRef.current?.click()}>
+                    <button
+                        type="button"
+                        className="btn"
+                        style={{ background: '#334155', color: '#fff' }}
+                        onClick={() => galleryInputRef.current?.click()}
+                        disabled={processingPhotos}
+                    >
                         <Images size={18} />
                         Galeria
                     </button>
                     <span className="text-muted photo-counter">{photos.length} foto(s)</span>
                 </div>
+                {processingPhotos && (
+                    <p className="text-muted photo-processing-hint">
+                        Otimizando imagem para o campo. Isso ajuda a evitar travadas e falhas no envio.
+                    </p>
+                )}
 
                 <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoUpload} style={{ display: 'none' }} />
                 <input ref={galleryInputRef} type="file" multiple accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} />
 
                 {photos.length > 0 && (
                     <div className="photo-grid">
-                        {photos.map((photo) => (
+                        {photos.map((photo, index) => (
                             <div key={photo.id} className="photo-item">
                                 <div className="photo-preview">
+                                    <div className="photo-overlay-badges">
+                                        <span className="photo-overlay-badge">Foto {String(index + 1).padStart(2, '0')}</span>
+                                        {photo.capturedAt ? (
+                                            <span className="photo-overlay-badge photo-overlay-badge-time">
+                                                <Clock3 size={11} />
+                                                {new Date(photo.capturedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                        ) : null}
+                                    </div>
                                     <img src={photo.preview} alt="preview" />
                                     <button type="button" className="remove-photo-btn" onClick={() => removePhoto(photo.id)}>
                                         <X size={12} />
@@ -323,7 +361,7 @@ function OSForm({ onSuccess, currentUser }) {
                                         rows={2}
                                         value={photo.note || ''}
                                         onChange={(event) => handlePhotoNoteChange(photo.id, event.target.value)}
-                                        placeholder="Observacao da foto (vai para PDF e Excel)"
+                                        placeholder="Observacao da foto (obrigatoria no relatorio)"
                                     />
                                 </div>
                             </div>
@@ -513,7 +551,7 @@ function OSForm({ onSuccess, currentUser }) {
                 <div className="wizard-footer">
                     <div className="wizard-footer-inner">
                         {step > 0 ? (
-                            <button type="button" className="btn" onClick={handlePreviousStep} disabled={loading}>
+                            <button type="button" className="btn" onClick={handlePreviousStep} disabled={loading || processingPhotos}>
                                 <ChevronLeft size={16} />
                                 Voltar
                             </button>
@@ -522,12 +560,12 @@ function OSForm({ onSuccess, currentUser }) {
                         )}
 
                         {step < steps.length - 1 ? (
-                            <button type="button" className="btn btn-primary" onClick={handleNextStep} disabled={loading}>
+                            <button type="button" className="btn btn-primary" onClick={handleNextStep} disabled={loading || processingPhotos}>
                                 Proxima etapa
                                 <ChevronRight size={16} />
                             </button>
                         ) : (
-                            <button type="submit" className="btn btn-primary" disabled={loading}>
+                            <button type="submit" className="btn btn-primary" disabled={loading || processingPhotos}>
                                 {loading ? <Loader2 className="animate-spin" /> : <Send size={18} />}
                                 Finalizar e salvar
                             </button>

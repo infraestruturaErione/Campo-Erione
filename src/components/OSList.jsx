@@ -102,6 +102,26 @@ function OSList({ currentUser }) {
     }, [osList, search, startDate, endDate]);
 
     const totalPages = Math.max(1, Math.ceil(filteredList.length / PAGE_SIZE));
+    const historyStats = useMemo(() => {
+        const withPhotos = filteredList.filter((item) => {
+            const metaCount = Array.isArray(item.photosMeta) ? item.photosMeta.length : 0;
+            const idCount = Array.isArray(item.photoIds) ? item.photoIds.length : 0;
+            return metaCount + idCount > 0;
+        }).length;
+        const concluded = filteredList.filter((item) => item.status === 'Concluido').length;
+        const activeObras = new Set(
+            filteredList
+                .map((item) => String(item.obraEquipamento || '').trim())
+                .filter(Boolean)
+        ).size;
+
+        return {
+            total: filteredList.length,
+            withPhotos,
+            concluded,
+            activeObras,
+        };
+    }, [filteredList]);
 
     const currentPageItems = useMemo(() => {
         const normalizedPage = Math.min(page, totalPages);
@@ -178,6 +198,27 @@ function OSList({ currentUser }) {
                 )}
                 <span className="text-muted">{filteredList.length} resultado(s)</span>
             </div>
+
+            {currentUser?.role === 'admin' && (
+                <section className="history-kpi-grid">
+                    <article className="history-kpi-card">
+                        <span>Total no periodo</span>
+                        <strong>{historyStats.total}</strong>
+                    </article>
+                    <article className="history-kpi-card">
+                        <span>Relatorios concluidos</span>
+                        <strong>{historyStats.concluded}</strong>
+                    </article>
+                    <article className="history-kpi-card">
+                        <span>Registros com foto</span>
+                        <strong>{historyStats.withPhotos}</strong>
+                    </article>
+                    <article className="history-kpi-card">
+                        <span>Obras ativas</span>
+                        <strong>{historyStats.activeObras}</strong>
+                    </article>
+                </section>
+            )}
 
             {loading ? (
                 <div className="card" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>

@@ -52,7 +52,14 @@ const saveSyncState = (state) => {
 
 export const getSyncState = () => {
     const raw = localStorage.getItem(SYNC_STATE_KEY);
-    return safeParse(raw, { pending: 0, lastSyncAt: null, lastResult: 'idle', message: '' });
+    return safeParse(raw, {
+        pending: 0,
+        failed: 0,
+        lastSyncAt: null,
+        lastResult: 'idle',
+        message: '',
+        failedItems: [],
+    });
 };
 
 export const getPendingSyncCount = () => loadQueue().length;
@@ -65,12 +72,32 @@ const updateOSSyncStatus = (osId, statusSync, patch = {}) => {
     saveOS({ ...target, ...patch, statusSync });
 };
 
+const toErrorMessage = (error, fallback = 'Falha ao sincronizar, fila mantida') =>
+    error instanceof Error && error.message ? error.message : fallback;
+
+const isConnectivityError = (error) => {
+    const message = String(error?.message || '').toLowerCase();
+    return (
+        message.includes('failed to fetch')
+        || message.includes('networkerror')
+        || message.includes('network request failed')
+        || message.includes('timeout')
+        || message.includes('econnrefused')
+        || (typeof navigator !== 'undefined' && navigator.onLine === false)
+    );
+};
+
 const upsertQueueOperation = (operation) => {
     const queue = loadQueue();
     const next = queue.filter((item) => item.osId !== operation.osId);
     next.push(operation);
     saveQueue(next);
-    saveSyncState({ pending: next.length, lastResult: 'queued', message: 'Fila offline atualizada' });
+    saveSyncState({
+        pending: next.length,
+        failed: getSyncState().failed || 0,
+        lastResult: 'queued',
+        message: 'Fila offline atualizada',
+    });
     return next;
 };
 
@@ -108,6 +135,7 @@ export const queueOSDelete = (os) => {
     saveQueue(next);
     saveSyncState({
         pending: next.length,
+        failed: getSyncState().failed || 0,
         lastResult: 'queued',
         message: hadPendingUpsert ? 'OS removida localmente antes da sincronizacao' : 'Exclusao pendente de sincronizacao',
     });
@@ -251,6 +279,7 @@ export const syncPendingOperations = async () => {
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
         saveSyncState({
             pending: getPendingSyncCount(),
+            failed: getSyncState().failed || 0,
             lastResult: 'offline',
             message: 'Sem internet para sincronizar',
         });
@@ -258,39 +287,116 @@ export const syncPendingOperations = async () => {
     }
 
     syncInFlight = true;
-    let queue = loadQueue();
+    const queue = loadQueue();
+    const retryQueue = [];
+    const failedItems = [];
+    let successCount = 0;
 
     try {
-        while (queue.length > 0) {
-            let current = queue[0];
-            current = await ensureSyncedPhotoMeta(current);
-            queue[0] = current;
-            saveQueue(queue);
+        saveSyncState({
+            pending: queue.length,
+            failed: 0,
+            lastResult: 'syncing',
+            message: queue.length > 0 ? 'Sincronizando fila offline...' : 'Fila vazia',
+            failedItems: [],
+        });
 
-            await sendSyncOperation(current);
+        for (let index = 0; index < queue.length; index += 1) {
+            const operation = queue[index];
 
-            if (current.type === 'UPSERT') {
-                updateOSSyncStatus(current.osId, 'SINCRONIZADO', {
-                    photosMeta: current.payload?.photosMeta || [],
+            try {
+                if (operation.type === 'UPSERT') {
+                    updateOSSyncStatus(operation.osId, 'SINCRONIZANDO');
+                }
+
+                const current = await ensureSyncedPhotoMeta(operation);
+
+                await sendSyncOperation(current);
+
+                if (current.type === 'UPSERT') {
+                    updateOSSyncStatus(current.osId, 'SINCRONIZADO', {
+                        photosMeta: current.payload?.photosMeta || [],
+                    });
+                }
+
+                successCount += 1;
+
+                const pendingCount = queue.length - successCount;
+                saveSyncState({
+                    pending: pendingCount,
+                    failed: failedItems.length,
+                    lastResult: 'syncing',
+                    message: pendingCount > 0
+                        ? `${successCount} registro(s) enviados. Continuando sincronizacao...`
+                        : 'Ultimo registro da fila enviado.',
+                    failedItems,
                 });
-            }
+            } catch (error) {
+                const message = toErrorMessage(error);
 
-            queue = queue.slice(1);
-            saveQueue(queue);
-            saveSyncState({ pending: queue.length });
+                if (operation.type === 'UPSERT') {
+                    updateOSSyncStatus(operation.osId, 'ERRO_SYNC');
+                }
+
+                failedItems.push({
+                    osId: operation.osId,
+                    type: operation.type,
+                    message,
+                });
+                retryQueue.push(operation);
+
+                if (isConnectivityError(error)) {
+                    retryQueue.push(...queue.slice(index + 1));
+                    saveQueue(retryQueue);
+                    saveSyncState({
+                        pending: retryQueue.length,
+                        failed: failedItems.length,
+                        lastResult: 'error',
+                        message: message || 'Conexao interrompida durante a sincronizacao.',
+                        failedItems,
+                    });
+                    emitOSUpdated();
+                    return getSyncState();
+                }
+            }
         }
 
+        saveQueue(retryQueue);
         const lastSyncAt = new Date().toISOString();
-        await logProgress('SYNC', 'Fila offline sincronizada com sucesso', 'CHECK');
-        saveSyncState({ pending: 0, lastSyncAt, lastResult: 'success', message: 'Sincronizacao concluida' });
+        if (failedItems.length === 0) {
+            await logProgress('SYNC', 'Fila offline sincronizada com sucesso', 'CHECK');
+            saveSyncState({
+                pending: 0,
+                failed: 0,
+                lastSyncAt,
+                lastResult: 'success',
+                message: 'Sincronizacao concluida',
+                failedItems: [],
+            });
+        } else {
+            await logProgress('SYNC', `${successCount} registro(s) sincronizados e ${failedItems.length} permaneceram pendentes`, 'ACT');
+            saveSyncState({
+                pending: retryQueue.length,
+                failed: failedItems.length,
+                lastSyncAt,
+                lastResult: successCount > 0 ? 'partial' : 'error',
+                message: successCount > 0
+                    ? `${successCount} registro(s) sincronizados. ${failedItems.length} item(ns) precisam de nova tentativa.`
+                    : failedItems[0]?.message || 'Falha ao sincronizar, fila mantida',
+                failedItems,
+            });
+        }
         emitOSUpdated();
         return getSyncState();
     } catch (error) {
         console.error('Erro de sincronizacao', error);
+        saveQueue(queue);
         saveSyncState({
             pending: queue.length,
+            failed: failedItems.length,
             lastResult: 'error',
-            message: error instanceof Error && error.message ? error.message : 'Falha ao sincronizar, fila mantida',
+            message: toErrorMessage(error),
+            failedItems,
         });
         return getSyncState();
     } finally {

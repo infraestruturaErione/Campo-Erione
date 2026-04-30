@@ -7,6 +7,15 @@ export function OSCard({ os, showCreator = false }) {
         ? os.photosMeta.length
         : (Array.isArray(os.photoIds) ? os.photoIds.length : 0);
 
+    const syncLabel = os.statusSync || 'PENDENTE_SYNC';
+    const syncClassName = syncLabel === 'SINCRONIZADO'
+        ? 'soft-badge soft-badge-success'
+        : syncLabel === 'SINCRONIZANDO'
+            ? 'soft-badge soft-badge-info'
+            : syncLabel === 'ERRO_SYNC'
+                ? 'soft-badge soft-badge-warning'
+                : 'soft-badge';
+
     return (
         <div className="card">
             <div className="os-header">
@@ -21,7 +30,7 @@ export function OSCard({ os, showCreator = false }) {
                 </span>
             </div>
             <div className="os-meta-strip">
-                <span className="soft-badge">Sync: {os.statusSync || 'PENDENTE_SYNC'}</span>
+                <span className={syncClassName}>Sync: {syncLabel}</span>
                 <span className="soft-badge">Fotos: {photoCount}</span>
                 <span className="soft-badge">Local: {os.local || '-'}</span>
             </div>

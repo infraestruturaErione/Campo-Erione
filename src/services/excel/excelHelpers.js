@@ -59,6 +59,15 @@ export const drawRow = (worksheet, row, config, theme) => {
 };
 
 export const drawBigBox = (worksheet, startRow, title, content, theme) => {
+    const normalized = String(content || '-')
+        .replace(/\r\n/g, '\n')
+        .replace(/\r/g, '\n')
+        .trim() || '-';
+    const estimatedLines = normalized
+        .split('\n')
+        .reduce((total, line) => total + Math.max(1, Math.ceil(line.length / 92)), 0);
+    const contentRows = Math.min(8, Math.max(3, estimatedLines));
+
     worksheet.mergeCells(startRow, 1, startRow, 6);
     const lbl = worksheet.getCell(startRow, 1);
     lbl.value = title;
@@ -69,22 +78,22 @@ export const drawBigBox = (worksheet, startRow, title, content, theme) => {
         alignment: { horizontal: 'left', vertical: 'middle' }
     });
 
-    worksheet.mergeCells(startRow + 1, 1, startRow + 3, 6);
+    worksheet.mergeCells(startRow + 1, 1, startRow + contentRows, 6);
     const val = worksheet.getCell(startRow + 1, 1);
-    val.value = content;
+    val.value = normalized;
     styleCell(val, {
         font: theme.font.normal,
         fill: theme.fill.value,
         alignment: { vertical: 'top', wrapText: true, indent: 1 }
     });
 
-    for (let r = startRow + 1; r <= startRow + 3; r++) {
-        worksheet.getRow(r).height = 24;
+    for (let r = startRow + 1; r <= startRow + contentRows; r++) {
+        worksheet.getRow(r).height = r === startRow + 1 ? 24 : 20;
         for (let c = 1; c <= 6; c++) {
             worksheet.getRow(r).getCell(c).border = theme.border.subtle;
             worksheet.getRow(r).getCell(c).fill = theme.fill.value;
         }
     }
 
-    return startRow + 4;
+    return startRow + contentRows + 1;
 };

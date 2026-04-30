@@ -7,7 +7,7 @@ export const theme = {
         subtitle: { name: 'Segoe UI', size: 9, italic: true, color: { argb: 'FF64748B' } },
         section: { name: 'Segoe UI', size: 12, bold: true, color: { argb: 'FF1E3A8A' } },
         noteLabel: { name: 'Segoe UI', size: 8, bold: true, color: { argb: 'FF475569' } },
-        noteBody: { name: 'Segoe UI', size: 9, italic: true, color: { argb: 'FF0F172A' } }
+        noteBody: { name: 'Segoe UI', size: 9, color: { argb: 'FF0F172A' } }
     },
 
     fill: {
