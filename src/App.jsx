@@ -254,6 +254,12 @@ function App() {
                 </section>
                 {renderContent()}
             </main>
+
+            <footer className="app-footer">
+                <a href="/politica-de-privacidade.html" target="_blank" rel="noreferrer">
+                    Politica de privacidade
+                </a>
+            </footer>
         </div>
     );
 }
