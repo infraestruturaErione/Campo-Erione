@@ -375,7 +375,7 @@ function OSForm({ onSuccess, currentUser }) {
                     <>
                         <div className="form-grid form-grid-2">
                             <div className="form-group">
-                                <label>RESPONSAVEL MOTIVA</label>
+                                <label>RESPONSAVEL DA OBRA</label>
                                 <input
                                     name="responsavelMotiva"
                                     required
@@ -385,7 +385,7 @@ function OSForm({ onSuccess, currentUser }) {
                                 />
                             </div>
                             <div className="form-group">
-                                <label>RESPONSAVEL CONTRATADA</label>
+                                <label>RESPONSAVEL ERIONE</label>
                                 <input
                                     name="responsavelContratada"
                                     required
@@ -491,11 +491,11 @@ function OSForm({ onSuccess, currentUser }) {
                                 </div>
                                 <div className="review-list">
                                     <div>
-                                        <span>Responsavel Erione</span>
+                                        <span>Responsavel da Obra</span>
                                         <strong>{formData.responsavelMotiva || 'Nao informado'}</strong>
                                     </div>
                                     <div>
-                                        <span>Responsavel contratada</span>
+                                        <span>Responsavel Erione</span>
                                         <strong>{formData.responsavelContratada || 'Nao informado'}</strong>
                                     </div>
                                     <div>

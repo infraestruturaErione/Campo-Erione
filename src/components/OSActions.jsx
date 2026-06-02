@@ -57,8 +57,8 @@ export function OSActions({ os }) {
             '',
             `Checklist da OS #${String(os.id || '').slice(-6)}`,
             `[x] Obra: ${os.obraEquipamento || '-'}`,
-            `[x] Responsavel Erione: ${os.responsavelMotiva || '-'}`,
-            `[x] Responsavel Contratada: ${os.responsavelContratada || '-'}`,
+            `[x] Responsavel da Obra: ${os.responsavelMotiva || '-'}`,
+            `[x] Responsavel Erione: ${os.responsavelContratada || '-'}`,
             `[x] Data: ${new Date(os.createdAt).toLocaleDateString('pt-BR')}`,
             `[x] Horario: ${horario}`,
             `[x] Local: ${os.local || '-'}`,
@@ -166,7 +166,7 @@ export function OSActions({ os }) {
             >
                 <div className="confirm-dialog-user-card">
                     <strong>{os.obraEquipamento || 'Obra nao informada'}</strong>
-                    <span>Responsavel: {os.responsavelContratada || '-'}</span>
+                    <span>Responsavel Erione: {os.responsavelContratada || '-'}</span>
                     <span>Local: {os.local || '-'}</span>
                 </div>
             </ConfirmDialog>

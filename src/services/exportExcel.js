@@ -62,7 +62,7 @@ const buildExcelWorkbook = async (os) => {
         worksheet,
         4,
         {
-            label1: 'RESPONSAVEL ERIONE:',
+            label1: 'RESPONSAVEL DA OBRA:',
             value1: os.responsavelMotiva || '-',
             mergeEnd1: 4,
             label2: 'DATA:',
@@ -72,7 +72,7 @@ const buildExcelWorkbook = async (os) => {
     );
 
     drawRow(worksheet, 5, {
-        label1: 'RESPONSAVEL CONTRATADA:', value1: os.responsavelContratada || '-', mergeEnd1: 6,
+        label1: 'RESPONSAVEL ERIONE:', value1: os.responsavelContratada || '-', mergeEnd1: 6,
     }, theme);
 
     drawRow(worksheet, 6, {

@@ -104,7 +104,18 @@ const formatPhotoTimestamp = (value) => {
     return date.toLocaleString('pt-BR');
 };
 
-const buildPdfDocument = async (os) => {
+const PDF_RESPONSIBLE_FIELDS = {
+    obra: {
+        label: 'RESPONSAVEL DA OBRA',
+        source: 'responsavelMotiva',
+    },
+    erione: {
+        label: 'RESPONSAVEL ERIONE',
+        source: 'responsavelContratada',
+    },
+};
+
+export const buildPdfDocument = async (os) => {
     const doc = new jsPDF();
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -168,11 +179,11 @@ const buildPdfDocument = async (os) => {
     const wideLeft = 116;
     const narrowRight = contentWidth - wideLeft - gap;
 
-    drawInfoBox('RESPONSAVEL ERIONE', os.responsavelMotiva, margin, currentY, wideLeft);
+    drawInfoBox(PDF_RESPONSIBLE_FIELDS.obra.label, os[PDF_RESPONSIBLE_FIELDS.obra.source], margin, currentY, wideLeft);
     drawInfoBox('DATA', new Date(os.createdAt).toLocaleDateString('pt-BR'), margin + wideLeft + gap, currentY, narrowRight);
     currentY += 19;
 
-    drawInfoBox('RESPONSAVEL CONTRATADA', os.responsavelContratada, margin, currentY, contentWidth);
+    drawInfoBox(PDF_RESPONSIBLE_FIELDS.erione.label, os[PDF_RESPONSIBLE_FIELDS.erione.source], margin, currentY, contentWidth);
     currentY += 19;
 
     drawInfoBox('OBRA', os.obraEquipamento, margin, currentY, contentWidth);

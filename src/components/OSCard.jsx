@@ -42,7 +42,7 @@ export function OSCard({ os, showCreator = false }) {
 
             <div className="os-grid os-grid-2">
                 <div>
-                    <label>Responsavel Contratada</label>
+                    <label>Responsavel Erione</label>
                     <p>{os.responsavelContratada}</p>
                 </div>
                 <div>
