@@ -29,8 +29,8 @@ services:
       AUTH_API_PORT: 3001
       AUTH_API_HOST: 0.0.0.0
       DATABASE_URL: ${DATABASE_URL}
-      APP_BASE_URL: ${APP_BASE_URL:-https://field.erione.com}
-      AUTH_ALLOWED_ORIGINS: ${AUTH_ALLOWED_ORIGINS:-https://field.erione.com}
+      APP_BASE_URL: ${APP_BASE_URL:-https://field.erione.com.br}
+      AUTH_ALLOWED_ORIGINS: ${AUTH_ALLOWED_ORIGINS:-https://field.erione.com.br}
       AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-appcampo_sid}
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-24}
       AUTH_RATE_LIMIT_WINDOW_MS: ${AUTH_RATE_LIMIT_WINDOW_MS:-900000}
