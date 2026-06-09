@@ -3,6 +3,7 @@ import { saveOS, storePhoto, deleteOS, deletePhoto } from './storage';
 import { logProgress } from './progressLog';
 import { queueOSCreateOrUpdate, queueOSDelete, syncPendingOperations } from './syncService';
 import { emitOSUpdated } from '../events/eventBus';
+import { stampPhotoTimestamp } from './photoTimestamp';
 
 const normalizePhotoFile = async (file) => {
     if (!(file instanceof Blob)) return file;
@@ -49,12 +50,19 @@ export async function createOS(formData, photos, currentUser) {
         const photosMeta = await Promise.all(
             photos.map(async (photo) => {
                 const photoId = `${osId}-${uuidv4()}`;
-                const normalizedFile = await normalizePhotoFile(photo.file);
+                const capturedAt = photo.capturedAt || new Date().toISOString();
+                const stampedFile = await stampPhotoTimestamp(photo.file, {
+                    capturedAt,
+                    local: normalizedFormData.local,
+                    obraEquipamento: normalizedFormData.obraEquipamento,
+                    note: photo.note,
+                });
+                const normalizedFile = await normalizePhotoFile(stampedFile);
                 await storePhoto(photoId, normalizedFile);
                 return {
                     id: photoId,
                     note: String(photo.note || '').trim(),
-                    capturedAt: photo.capturedAt || new Date().toISOString(),
+                    capturedAt,
                 };
             })
         );
