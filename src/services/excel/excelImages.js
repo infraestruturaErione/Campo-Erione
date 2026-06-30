@@ -73,10 +73,9 @@ const estimateLineCount = (value, maxCharsPerLine = 42) => {
     return rawLines.reduce((count, line) => count + Math.max(1, Math.ceil(line.length / maxCharsPerLine)), 0);
 };
 
-export const addLogo = async (workbook, worksheet) => {
+export const addLogo = async (workbook, worksheet, reportTemplate) => {
     try {
-        const logoUrl = '/logo_motiva.png';
-        const response = await fetch(logoUrl);
+        const response = await fetch(reportTemplate.logoUrl);
         const arrayBuffer = await response.arrayBuffer();
 
         const logoId = workbook.addImage({
@@ -86,7 +85,7 @@ export const addLogo = async (workbook, worksheet) => {
 
         worksheet.addImage(logoId, {
             tl: { col: 0.1, row: 0.15 },
-            ext: { width: 150, height: 42 }
+            ext: reportTemplate.excelLogo
         });
     } catch (e) {
         console.error('Error adding logo to Excel:', e);

@@ -13,6 +13,7 @@ import {
     Clock3,
 } from 'lucide-react';
 import { createOS } from '../services/osService';
+import { DEFAULT_REPORT_TEMPLATE, REPORT_TEMPLATES } from '../services/reportTemplates';
 import { useToast } from './ui/ToastProvider';
 
 const DRAFT_KEY = 'appcampo_os_draft_v1';
@@ -20,6 +21,7 @@ const MAX_UPLOAD_BYTES = 1024 * 1024;
 const IMAGE_MIME_TYPE = 'image/jpeg';
 
 const INITIAL_FORM_STATE = {
+    reportTemplate: DEFAULT_REPORT_TEMPLATE,
     responsavelMotiva: '',
     responsavelContratada: '',
     obraEquipamento: '',
@@ -375,6 +377,14 @@ function OSForm({ onSuccess, currentUser }) {
                     <>
                         <div className="form-grid form-grid-2">
                             <div className="form-group">
+                                <label>TEMPLATE DO RELATORIO</label>
+                                <select name="reportTemplate" value={formData.reportTemplate} onChange={handleChange}>
+                                    {Object.values(REPORT_TEMPLATES).map((template) => (
+                                        <option key={template.id} value={template.id}>{template.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="form-group">
                                 <label>RESPONSAVEL DA OBRA</label>
                                 <input
                                     name="responsavelMotiva"
@@ -384,6 +394,8 @@ function OSForm({ onSuccess, currentUser }) {
                                     placeholder="Ex: Jonathan/Fabio"
                                 />
                             </div>
+                        </div>
+                        <div className="form-grid form-grid-2">
                             <div className="form-group">
                                 <label>RESPONSAVEL ERIONE</label>
                                 <input
@@ -393,6 +405,14 @@ function OSForm({ onSuccess, currentUser }) {
                                     onChange={handleChange}
                                     placeholder="Ex: Gustavo Penedo"
                                 />
+                            </div>
+                            <div className="form-group">
+                                <label>STATUS</label>
+                                <select name="status" value={formData.status} onChange={handleChange}>
+                                    <option value="Em andamento">Em andamento</option>
+                                    <option value="Aguardando">Aguardando</option>
+                                    <option value="Concluido">Concluido</option>
+                                </select>
                             </div>
                         </div>
 
@@ -420,15 +440,6 @@ function OSForm({ onSuccess, currentUser }) {
                                 <label>LOCAL</label>
                                 <input name="local" value={formData.local} onChange={handleChange} placeholder="Ex: P06/P07" />
                             </div>
-                        </div>
-
-                        <div className="form-group">
-                            <label>STATUS</label>
-                            <select name="status" value={formData.status} onChange={handleChange}>
-                                <option value="Em andamento">Em andamento</option>
-                                <option value="Aguardando">Aguardando</option>
-                                <option value="Concluido">Concluido</option>
-                            </select>
                         </div>
                     </>
                 )}
@@ -490,6 +501,10 @@ function OSForm({ onSuccess, currentUser }) {
                                     </div>
                                 </div>
                                 <div className="review-list">
+                                    <div>
+                                        <span>Template</span>
+                                        <strong>{REPORT_TEMPLATES[formData.reportTemplate]?.label || REPORT_TEMPLATES[DEFAULT_REPORT_TEMPLATE].label}</strong>
+                                    </div>
                                     <div>
                                         <span>Responsavel da Obra</span>
                                         <strong>{formData.responsavelMotiva || 'Nao informado'}</strong>

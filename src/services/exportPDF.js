@@ -3,6 +3,7 @@ import 'jspdf-autotable';
 import { downloadGeneratedFile } from './nativeFileExport';
 import { getStoredPhotoBlob } from './photoBlob';
 import { fetchPhotoBlobFromMeta } from './photoAccess';
+import { getReportTemplate } from './reportTemplates';
 
 const loadImage = (url) =>
     fetch(url)
@@ -116,6 +117,7 @@ const PDF_RESPONSIBLE_FIELDS = {
 };
 
 export const buildPdfDocument = async (os) => {
+    const reportTemplate = getReportTemplate(os.reportTemplate);
     const doc = new jsPDF();
     const margin = 14;
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -133,15 +135,15 @@ export const buildPdfDocument = async (os) => {
     };
 
     try {
-        const logo = await loadImage('/logo_motiva.png');
-        doc.addImage(logo, 'PNG', margin, currentY, 40, 18);
+        const logo = await loadImage(reportTemplate.logoUrl);
+        doc.addImage(logo, 'PNG', margin, currentY, reportTemplate.pdfLogo.width, reportTemplate.pdfLogo.height);
     } catch (error) {
         console.error('Logo load failed, using fallback', error);
         doc.setFillColor(59, 130, 246);
         doc.rect(margin, currentY, 30, 18, 'F');
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(10);
-        doc.text('motiva', margin + 5, currentY + 11);
+        doc.text(reportTemplate.fallbackText, margin + 5, currentY + 11);
     }
 
     doc.setTextColor(29, 78, 216);

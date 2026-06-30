@@ -4,6 +4,7 @@ import { logProgress } from './progressLog';
 import { queueOSCreateOrUpdate, queueOSDelete, syncPendingOperations } from './syncService';
 import { emitOSUpdated } from '../events/eventBus';
 import { stampPhotoTimestamp } from './photoTimestamp';
+import { normalizeReportTemplate } from './reportTemplates';
 
 const normalizePhotoFile = async (file) => {
     if (!(file instanceof Blob)) return file;
@@ -15,6 +16,7 @@ const normalizeTextField = (value) => String(value || '').trim();
 
 const normalizeFormData = (formData) => ({
     ...formData,
+    reportTemplate: normalizeReportTemplate(formData.reportTemplate),
     responsavelMotiva: normalizeTextField(formData.responsavelMotiva),
     responsavelContratada: normalizeTextField(formData.responsavelContratada),
     obraEquipamento: normalizeTextField(formData.obraEquipamento),

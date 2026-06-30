@@ -3,6 +3,7 @@ import { theme } from './excel/excelTheme.js';
 import { drawRow, drawBigBox } from './excel/excelHelpers.js';
 import { addLogo, drawPhotos } from './excel/excelImages.js';
 import { downloadGeneratedFile } from './nativeFileExport';
+import { getReportTemplate } from './reportTemplates';
 
 const sanitizeFileName = (value) =>
     String(value || 'Obra')
@@ -13,11 +14,12 @@ const sanitizeFileName = (value) =>
         .replace(/\s+/g, '_');
 
 const buildExcelWorkbook = async (os) => {
+    const reportTemplate = getReportTemplate(os.reportTemplate);
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = 'Erione Field - Motiva Engenharia';
+    workbook.creator = `Erione Field - ${reportTemplate.workbookCompany}`;
     workbook.lastModifiedBy = 'Erione Field';
     workbook.created = new Date();
-    workbook.company = 'Motiva Engenharia';
+    workbook.company = reportTemplate.workbookCompany;
 
     const worksheet = workbook.addWorksheet('Relatorio de Obra');
     worksheet.properties.defaultRowHeight = 20;
@@ -42,7 +44,7 @@ const buildExcelWorkbook = async (os) => {
         { width: 16 },
     ];
 
-    await addLogo(workbook, worksheet);
+    await addLogo(workbook, worksheet, reportTemplate);
 
     worksheet.mergeCells('C1:F1');
     const titleCell = worksheet.getCell('C1');

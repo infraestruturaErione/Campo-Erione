@@ -39,6 +39,7 @@ const loginAttemptStore = new Map();
 
 const osPayloadSchema = z.object({
     id: z.string().uuid(),
+    reportTemplate: z.enum(['erione', 'motiva']).optional().default('motiva'),
     responsavelMotiva: z.string().trim().min(1).max(100),
     responsavelContratada: z.string().trim().min(1).max(100),
     obraEquipamento: z.string().trim().min(1).max(200),
