@@ -19,7 +19,3 @@ if (hasProperty('postBuildExtras')) {
   postBuildExtras()
 }
 
-
-
-
-

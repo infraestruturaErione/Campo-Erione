@@ -19,6 +19,7 @@ const normalizeFormData = (formData) => ({
     reportTemplate: normalizeReportTemplate(formData.reportTemplate),
     responsavelMotiva: normalizeTextField(formData.responsavelMotiva),
     responsavelContratada: normalizeTextField(formData.responsavelContratada),
+    equipe: normalizeTextField(formData.equipe),
     obraEquipamento: normalizeTextField(formData.obraEquipamento),
     horarioInicio: normalizeTextField(formData.horarioInicio),
     horarioFim: normalizeTextField(formData.horarioFim),

@@ -77,6 +77,7 @@ export const fetchAdminOS = async ({ search = '', status = '' } = {}) => {
             obraEquipamento: item.obraEquipamento || source.obraEquipamento || '-',
             responsavelContratada: item.responsavelContratada || source.responsavelContratada || '-',
             responsavelMotiva: source.responsavelMotiva || '-',
+            equipe: source.equipe || '',
             horarioInicio: source.horarioInicio || '-',
             horarioFim: source.horarioFim || '-',
             local: source.local || '-',

@@ -9,14 +9,14 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.erione.field"
+    namespace = "com.erione.erionefield"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.erione.field"
+        applicationId "com.erione.erionefield"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 8
+        versionName "1.0.7"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -82,6 +82,20 @@ try {
 } catch(Exception e) {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

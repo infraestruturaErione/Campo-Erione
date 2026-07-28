@@ -24,6 +24,7 @@ const INITIAL_FORM_STATE = {
     reportTemplate: DEFAULT_REPORT_TEMPLATE,
     responsavelMotiva: '',
     responsavelContratada: '',
+    equipe: '',
     obraEquipamento: '',
     horarioInicio: '08:00',
     horarioFim: '18:00',
@@ -407,12 +408,13 @@ function OSForm({ onSuccess, currentUser }) {
                                 />
                             </div>
                             <div className="form-group">
-                                <label>STATUS</label>
-                                <select name="status" value={formData.status} onChange={handleChange}>
-                                    <option value="Em andamento">Em andamento</option>
-                                    <option value="Aguardando">Aguardando</option>
-                                    <option value="Concluido">Concluido</option>
-                                </select>
+                                <label>EQUIPE</label>
+                                <input
+                                    name="equipe"
+                                    value={formData.equipe}
+                                    onChange={handleChange}
+                                    placeholder="Ex: Joao/Wesley"
+                                />
                             </div>
                         </div>
 
@@ -512,6 +514,10 @@ function OSForm({ onSuccess, currentUser }) {
                                     <div>
                                         <span>Responsavel Erione</span>
                                         <strong>{formData.responsavelContratada || 'Nao informado'}</strong>
+                                    </div>
+                                    <div>
+                                        <span>Equipe</span>
+                                        <strong>{formData.equipe || 'Nao informado'}</strong>
                                     </div>
                                     <div>
                                         <span>Obra</span>

@@ -2,6 +2,27 @@ import { CapacitorHttp } from '@capacitor/core';
 import { buildAuthHeaders, clearSessionId, fetchWithTimeout, isNativeApiRuntime, saveSessionId, withApiBase } from './apiConfig';
 
 const AUTH_BASE = withApiBase('/api/auth');
+const OFFLINE_USER_KEY = 'appcampo_offline_user';
+
+const cacheOfflineUser = (user) => {
+    if (!user || typeof localStorage === 'undefined') return;
+    localStorage.setItem(OFFLINE_USER_KEY, JSON.stringify(user));
+};
+
+const getCachedOfflineUser = () => {
+    if (typeof localStorage === 'undefined') return null;
+    try {
+        const cached = JSON.parse(localStorage.getItem(OFFLINE_USER_KEY) || 'null');
+        return cached && typeof cached === 'object' ? cached : null;
+    } catch {
+        return null;
+    }
+};
+
+const clearOfflineUser = () => {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.removeItem(OFFLINE_USER_KEY);
+};
 
 const parseError = async (response) => {
     const payload = await response.json().catch(() => ({}));
@@ -32,6 +53,7 @@ export const login = async (username, password) => {
             }
 
             saveSessionId(response.data?.sessionId);
+            cacheOfflineUser(response.data?.user);
             return response.data?.user ?? null;
         } catch (error) {
             if (error instanceof Error && error.message && error.message !== 'Erro desconhecido') {
@@ -59,6 +81,7 @@ export const login = async (username, password) => {
 
     const payload = await response.json();
     saveSessionId(payload.sessionId);
+    cacheOfflineUser(payload.user);
     return payload.user;
 };
 
@@ -75,13 +98,14 @@ export const getSession = async () => {
             if (response.status < 200 || response.status >= 300) {
                 if (response.status === 401 || response.status === 403) {
                     clearSessionId();
+                    clearOfflineUser();
                 }
                 return null;
             }
 
             return response.data?.user ?? null;
         } catch {
-            return null;
+            return getCachedOfflineUser();
         }
     }
 
@@ -92,12 +116,13 @@ export const getSession = async () => {
             credentials: 'include',
         }, 7000);
     } catch {
-        return null;
+        return getCachedOfflineUser();
     }
 
     if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
             clearSessionId();
+            clearOfflineUser();
         }
         return null;
     }
@@ -115,6 +140,7 @@ export const logout = async () => {
             readTimeout: 7000,
         }).catch(() => null);
         clearSessionId();
+        clearOfflineUser();
         return;
     }
 
@@ -124,4 +150,5 @@ export const logout = async () => {
         credentials: 'include',
     }, 7000).catch(() => null);
     clearSessionId();
+    clearOfflineUser();
 };

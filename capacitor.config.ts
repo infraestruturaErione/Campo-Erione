@@ -7,8 +7,8 @@ const defaultServerConfig = {
 } as const;
 
 const config: CapacitorConfig = {
-    appId: 'com.erione.field',
-    appName: 'Erione Field',
+    appId: 'com.erione.erionefield',
+    appName: 'Field Service Erione',
     webDir: 'dist',
     ...(useRemoteServer
         ? {

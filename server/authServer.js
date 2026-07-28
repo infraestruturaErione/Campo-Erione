@@ -42,6 +42,7 @@ const osPayloadSchema = z.object({
     reportTemplate: z.enum(['erione', 'motiva']).optional().default('motiva'),
     responsavelMotiva: z.string().trim().min(1).max(100),
     responsavelContratada: z.string().trim().min(1).max(100),
+    equipe: z.string().trim().max(160).optional().default(''),
     obraEquipamento: z.string().trim().min(1).max(200),
     horarioInicio: z.string().trim().min(1).max(10),
     horarioFim: z.string().trim().min(1).max(10),
@@ -712,6 +713,7 @@ app.get('/api/admin/os', requireAdmin, async (req, res) => {
                     status: payload.status || '-',
                     obraEquipamento: payload.obraEquipamento || '-',
                     responsavelContratada: payload.responsavelContratada || '-',
+                    equipe: payload.equipe || '',
                     createdAt: payload.createdAt || row.created_at,
                     updatedAt: row.updated_at,
                     submittedBy: row.submitted_by_name || row.submitted_by_username || payload.ownerName || payload.ownerUsername || '-',
@@ -720,7 +722,7 @@ app.get('/api/admin/os', requireAdmin, async (req, res) => {
             .filter((item) => {
                 if (status && item.status !== status) return false;
                 if (!search) return true;
-                const haystack = `${item.osId} ${item.obraEquipamento} ${item.responsavelContratada} ${item.submittedBy}`.toLowerCase();
+                const haystack = `${item.osId} ${item.obraEquipamento} ${item.responsavelContratada} ${item.equipe} ${item.submittedBy}`.toLowerCase();
                 return haystack.includes(search);
             });
 

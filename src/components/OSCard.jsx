@@ -35,9 +35,10 @@ export function OSCard({ os, showCreator = false }) {
                 <span className="soft-badge">Local: {os.local || '-'}</span>
             </div>
             {showCreator && (
-                <p className="sync-status-text">
-                    Criado por: {os.ownerName || os.ownerUsername || '-'}
-                </p>
+                <div className="admin-os-extra-meta">
+                    <span>Criado por: {os.ownerName || os.ownerUsername || '-'}</span>
+                    <span>Equipe: {os.equipe || '-'}</span>
+                </div>
             )}
 
             <div className="os-grid os-grid-2">

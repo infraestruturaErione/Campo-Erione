@@ -87,6 +87,7 @@ function OSList({ currentUser }) {
                 item.obraEquipamento,
                 item.responsavelContratada,
                 item.responsavelMotiva,
+                item.equipe,
                 item.ownerName,
                 item.ownerUsername,
                 item.local,

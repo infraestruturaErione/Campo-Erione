@@ -1,4 +1,4 @@
-package com.erione.field;
+package com.erione.erionefield;
 
 import com.getcapacitor.BridgeActivity;
 
