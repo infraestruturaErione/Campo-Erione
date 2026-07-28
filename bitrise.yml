@@ -1,0 +1,101 @@
+format_version: '13'
+default_step_lib_source: https://github.com/bitrise-io/bitrise-steplib.git
+project_type: ios
+
+app:
+  envs:
+    - BITRISE_PROJECT_PATH: ios/App/App.xcworkspace
+    - BITRISE_SCHEME: App
+    - BITRISE_DISTRIBUTION_METHOD: app-store
+    - NODE_OPTIONS: --max-old-space-size=4096
+    - VITE_API_BASE_URL: https://field.erione.com
+
+workflows:
+  ios_app_store:
+    description: Build iOS archive for App Store Connect using Bitrise macOS/Xcode stack.
+    steps:
+      - activate-ssh-key@4: {}
+      - git-clone@8: {}
+      - cache-pull@2: {}
+      - script@1:
+          title: Install Node dependencies
+          inputs:
+            - content: |-
+                #!/usr/bin/env bash
+                set -euo pipefail
+                npm ci
+      - script@1:
+          title: Build web assets for production
+          inputs:
+            - content: |-
+                #!/usr/bin/env bash
+                set -euo pipefail
+                npm run build
+      - script@1:
+          title: Sync Capacitor iOS
+          inputs:
+            - content: |-
+                #!/usr/bin/env bash
+                set -euo pipefail
+                npx cap sync ios
+      - cocoapods-install@2:
+          inputs:
+            - source_root_path: ios/App
+      - xcode-archive@5:
+          inputs:
+            - project_path: $BITRISE_PROJECT_PATH
+            - scheme: $BITRISE_SCHEME
+            - distribution_method: $BITRISE_DISTRIBUTION_METHOD
+            - automatic_code_signing: api-key
+      - deploy-to-bitrise-io@2: {}
+      - cache-push@2: {}
+
+  android_app_store:
+    description: Build Android AAB for Google Play.
+    envs:
+      - JAVA_HOME: $JAVA_HOME_17_X64
+    steps:
+      - activate-ssh-key@4: {}
+      - git-clone@8: {}
+      - cache-pull@2: {}
+      - script@1:
+          title: Install Node dependencies
+          inputs:
+            - content: |-
+                #!/usr/bin/env bash
+                set -euo pipefail
+                npm ci
+      - script@1:
+          title: Build web assets for production
+          inputs:
+            - content: |-
+                #!/usr/bin/env bash
+                set -euo pipefail
+                npm run build
+      - script@1:
+          title: Sync Capacitor Android
+          inputs:
+            - content: |-
+                #!/usr/bin/env bash
+                set -euo pipefail
+                npx cap sync android
+      - script@1:
+          title: Patch Capacitor Java compatibility
+          inputs:
+            - content: |-
+                #!/usr/bin/env bash
+                set -euo pipefail
+                node scripts/patch-capacitor-java.mjs
+      - script@1:
+          title: Build Android release bundle
+          inputs:
+            - content: |-
+                #!/usr/bin/env bash
+                set -euo pipefail
+                cd android
+                chmod +x gradlew
+                ./gradlew bundleRelease
+      - deploy-to-bitrise-io@2:
+          inputs:
+            - deploy_path: android/app/build/outputs/bundle/release/app-release.aab
+      - cache-push@2: {}
