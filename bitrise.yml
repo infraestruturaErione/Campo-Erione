@@ -8,7 +8,7 @@ app:
     - BITRISE_SCHEME: App
     - BITRISE_DISTRIBUTION_METHOD: app-store
     - NODE_OPTIONS: --max-old-space-size=4096
-    - VITE_API_BASE_URL: https://field.erione.com
+    - VITE_API_BASE_URL: https://field.erione.com.br
 
 workflows:
   ios_app_store:
