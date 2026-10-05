@@ -236,6 +236,8 @@ function OSList({ currentUser }) {
                             key={os.id}
                             os={os}
                             showCreator={currentUser?.role === 'admin'}
+                            allowRemoteDelete={currentUser?.role === 'admin'}
+                            onDeleted={() => setOsList((prev) => prev.filter((item) => item.id !== os.id))}
                         />
                     ))}
 

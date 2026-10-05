@@ -131,3 +131,15 @@ export const deleteAdminUser = async (userId) => {
         throw new Error(await parseError(response));
     }
 };
+
+export const deleteAdminOS = async (osId) => {
+    const response = await fetchWithTimeout(`${ADMIN_BASE}/os/${osId}`, {
+        method: 'DELETE',
+        headers: buildAuthHeaders(),
+        credentials: 'include',
+    }, 10000);
+
+    if (!response.ok) {
+        throw new Error(await parseError(response));
+    }
+};

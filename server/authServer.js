@@ -258,6 +258,19 @@ const clearSessionCookie = (res) => {
     });
 };
 
+const markOSDeleted = async (osId, submittedBy) => {
+    await pool.query(
+        `INSERT INTO os_records (os_id, payload, submitted_by, last_operation, deleted_at, created_at, updated_at)
+         VALUES ($1, '{}', $2, 'DELETE', NOW(), NOW(), NOW())
+         ON DUPLICATE KEY UPDATE payload = VALUES(payload),
+                                 submitted_by = VALUES(submitted_by),
+                                 last_operation = 'DELETE',
+                                 deleted_at = NOW(),
+                                 updated_at = NOW()`,
+        [osId, submittedBy]
+    );
+};
+
 const createSession = async (userId) => {
     const sessionId = randomUUID();
     const expiresAt = new Date(Date.now() + sessionTtlHours * 60 * 60 * 1000);
@@ -585,16 +598,11 @@ app.post('/api/sync/os', requireAuth, async (req, res) => {
                 [operation.osId, JSON.stringify(operation.payload || {}), req.user.id]
             );
         } else {
-            await pool.query(
-                `INSERT INTO os_records (os_id, payload, submitted_by, last_operation, deleted_at, created_at, updated_at)
-                 VALUES ($1, '{}', $2, 'DELETE', NOW(), NOW(), NOW())
-                 ON DUPLICATE KEY UPDATE payload = VALUES(payload),
-                                         submitted_by = VALUES(submitted_by),
-                                         last_operation = 'DELETE',
-                                         deleted_at = NOW(),
-                                         updated_at = NOW()`,
-                [operation.osId, req.user.id]
-            );
+            if (req.user.role !== 'admin') {
+                return sendError(res, 403, 'Apenas administradores podem excluir OS do servidor');
+            }
+
+            await markOSDeleted(operation.osId, req.user.id);
         }
 
         return sendSuccess(res);
@@ -730,6 +738,31 @@ app.get('/api/admin/os', requireAdmin, async (req, res) => {
     } catch (error) {
         console.error('Erro ao listar OS para admin', error);
         return sendError(res, 500, 'Falha ao carregar OS');
+    }
+});
+
+app.delete('/api/admin/os/:osId', requireAdmin, async (req, res) => {
+    const osId = String(req.params.osId || '').trim();
+    if (!osId) {
+        return sendError(res, 400, 'OS invalida');
+    }
+
+    try {
+        const existing = await pool.query(
+            `SELECT os_id FROM os_records WHERE os_id = $1 AND deleted_at IS NULL LIMIT 1`,
+            [osId]
+        );
+
+        if (existing.rowCount === 0) {
+            return sendError(res, 404, 'OS nao encontrada');
+        }
+
+        await markOSDeleted(osId, req.user.id);
+
+        return sendSuccess(res);
+    } catch (error) {
+        console.error('Erro ao excluir OS', error);
+        return sendError(res, 500, 'Falha ao excluir OS');
     }
 });
 

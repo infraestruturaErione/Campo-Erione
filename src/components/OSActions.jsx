@@ -3,10 +3,11 @@ import { FileText, FileSpreadsheet, Loader2, Trash2, MessageCircle } from 'lucid
 import { exportToExcel, exportToExcelBlob } from '../services/exportExcel';
 import { exportToPDF, exportToPDFBlob } from '../services/exportPDF';
 import { removeOS } from '../services/osService';
+import { deleteAdminOS } from '../services/adminService';
 import { useToast } from './ui/ToastProvider';
 import ConfirmDialog from './ui/ConfirmDialog';
 
-export function OSActions({ os }) {
+export function OSActions({ os, allowRemoteDelete = false, onDeleted }) {
     const toast = useToast();
     const [exporting, setExporting] = useState(null);
     const [deleting, setDeleting] = useState(false);
@@ -31,9 +32,17 @@ export function OSActions({ os }) {
     const handleDelete = async () => {
         setDeleting(true);
         try {
-            await removeOS(os);
+            if (allowRemoteDelete) {
+                await deleteAdminOS(os.osId || os.id);
+            } else {
+                await removeOS(os);
+            }
             setConfirmDeleteOpen(false);
-            toast.success('OS apagada com sucesso.', 'Historico');
+            onDeleted?.(os);
+            toast.success(
+                allowRemoteDelete ? 'OS excluida do servidor com sucesso.' : 'OS removida deste dispositivo.',
+                'Historico'
+            );
         } catch (error) {
             console.error('Delete OS error:', error);
             toast.error(error.message || 'Erro ao apagar OS.', 'Historico');
@@ -156,8 +165,10 @@ export function OSActions({ os }) {
 
             <ConfirmDialog
                 open={confirmDeleteOpen}
-                title="Apagar este relatorio?"
-                message="Essa OS sera removida do historico local. Use essa acao somente quando o registro nao for mais necessario."
+                title={allowRemoteDelete ? 'Excluir esta OS do servidor?' : 'Apagar este relatorio?'}
+                message={allowRemoteDelete
+                    ? 'Essa OS sera excluida dos registros sincronizados e deixara de aparecer para administradores.'
+                    : 'Essa OS sera removida somente do historico local deste dispositivo. O registro sincronizado no servidor sera preservado.'}
                 confirmLabel="Apagar OS"
                 cancelLabel="Voltar"
                 loading={deleting}

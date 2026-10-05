@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { saveOS, storePhoto, deleteOS, deletePhoto } from './storage';
 import { logProgress } from './progressLog';
-import { queueOSCreateOrUpdate, queueOSDelete, syncPendingOperations } from './syncService';
+import { discardQueuedOSOperations, queueOSCreateOrUpdate, syncPendingOperations } from './syncService';
 import { emitOSUpdated } from '../events/eventBus';
 import { stampPhotoTimestamp } from './photoTimestamp';
 import { normalizeReportTemplate } from './reportTemplates';
@@ -91,14 +91,13 @@ export async function createOS(formData, photos, currentUser) {
 
 export async function removeOS(os) {
     try {
-        queueOSDelete(os);
+        discardQueuedOSOperations(os);
         const photoIds = os?.photoIds || [];
         await Promise.all(photoIds.map((photoId) => deletePhoto(photoId)));
         deleteOS(os.id);
 
         await logProgress('EXCLUIDO', `OS #${String(os.id || '').slice(0, 8)} - Obra: ${os.obraEquipamento || '-'}`);
 
-        await syncPendingOperations();
         emitOSUpdated();
     } catch (error) {
         console.error('Falha ao excluir OS', error);

@@ -113,31 +113,17 @@ export const queueOSCreateOrUpdate = (os) => {
     emitOSUpdated();
 };
 
-export const queueOSDelete = (os) => {
+export const discardQueuedOSOperations = (os) => {
     const queue = loadQueue();
     const withoutSame = queue.filter((item) => item.osId !== os.id);
-
-    // If the OS never synced and only exists as UPSERT pending, deleting locally is enough.
     const hadPendingUpsert = queue.some((item) => item.osId === os.id && item.type === 'UPSERT');
-    const next = hadPendingUpsert
-        ? withoutSame
-        : [
-            ...withoutSame,
-            {
-                id: crypto.randomUUID(),
-                type: 'DELETE',
-                osId: os.id,
-                payload: { id: os.id },
-                createdAt: new Date().toISOString(),
-            },
-        ];
 
-    saveQueue(next);
+    saveQueue(withoutSame);
     saveSyncState({
-        pending: next.length,
+        pending: withoutSame.length,
         failed: getSyncState().failed || 0,
         lastResult: 'queued',
-        message: hadPendingUpsert ? 'OS removida localmente antes da sincronizacao' : 'Exclusao pendente de sincronizacao',
+        message: hadPendingUpsert ? 'OS removida localmente antes da sincronizacao' : 'OS removida somente deste dispositivo',
     });
     emitOSUpdated();
 };
@@ -287,7 +273,16 @@ export const syncPendingOperations = async () => {
     }
 
     syncInFlight = true;
-    const queue = loadQueue();
+    const storedQueue = loadQueue();
+    const legacyDeleteCount = storedQueue.filter((operation) => operation.type === 'DELETE').length;
+    const queue = legacyDeleteCount > 0
+        ? storedQueue.filter((operation) => operation.type !== 'DELETE')
+        : storedQueue;
+
+    if (legacyDeleteCount > 0) {
+        saveQueue(queue);
+    }
+
     const retryQueue = [];
     const failedItems = [];
     let successCount = 0;
@@ -297,7 +292,9 @@ export const syncPendingOperations = async () => {
             pending: queue.length,
             failed: 0,
             lastResult: 'syncing',
-            message: queue.length > 0 ? 'Sincronizando fila offline...' : 'Fila vazia',
+            message: legacyDeleteCount > 0
+                ? `${legacyDeleteCount} exclusao(oes) legada(s) removida(s) da fila local.`
+                : (queue.length > 0 ? 'Sincronizando fila offline...' : 'Fila vazia'),
             failedItems: [],
         });
 

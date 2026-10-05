@@ -2,7 +2,7 @@ import React from 'react';
 import { OSPhotos } from './OSPhotos';
 import { OSActions } from './OSActions';
 
-export function OSCard({ os, showCreator = false }) {
+export function OSCard({ os, showCreator = false, allowRemoteDelete = false, onDeleted }) {
     const photoCount = Array.isArray(os.photosMeta) && os.photosMeta.length > 0
         ? os.photosMeta.length
         : (Array.isArray(os.photoIds) ? os.photoIds.length : 0);
@@ -25,9 +25,6 @@ export function OSCard({ os, showCreator = false }) {
                         {new Date(os.createdAt).toLocaleString('pt-BR')} | OS #{os.id.toString().slice(-6)}
                     </p>
                 </div>
-                <span className={`badge ${os.status === 'Concluido' ? 'badge-done' : 'badge-pending'}`}>
-                    {os.status}
-                </span>
             </div>
             <div className="os-meta-strip">
                 <span className={syncClassName}>Sync: {syncLabel}</span>
@@ -83,7 +80,7 @@ export function OSCard({ os, showCreator = false }) {
                 <OSPhotos osId={os.id} photoIds={os.photoIds} photosMeta={os.photosMeta} />
             )}
 
-            <OSActions os={os} />
+            <OSActions os={os} allowRemoteDelete={allowRemoteDelete} onDeleted={onDeleted} />
         </div>
     );
 }
