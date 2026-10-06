@@ -105,6 +105,18 @@ const formatPhotoTimestamp = (value) => {
     return date.toLocaleString('pt-BR');
 };
 
+const fitImageInBox = (image, boxWidth, boxHeight) => {
+    const imageWidth = Number(image?.width || 0);
+    const imageHeight = Number(image?.height || 0);
+    if (!imageWidth || !imageHeight) return null;
+
+    const scale = Math.min(boxWidth / imageWidth, boxHeight / imageHeight);
+    return {
+        width: imageWidth * scale,
+        height: imageHeight * scale,
+    };
+};
+
 const PDF_RESPONSIBLE_FIELDS = {
     obra: {
         label: 'RESPONSAVEL DA OBRA',
@@ -228,104 +240,175 @@ export const buildPdfDocument = async (os) => {
     drawBoxSection('Descricao Detalhada:', os.descricao);
     drawBoxSection('Ocorrencias:', os.ocorrencias);
 
-    ensurePageSpace(15);
-    doc.setFillColor(232, 238, 249);
-    doc.roundedRect(margin, currentY, contentWidth, 10, 1.5, 1.5, 'F');
-    doc.setFont(undefined, 'bold');
-    doc.setFontSize(12);
-    doc.setTextColor(30, 58, 138);
-    doc.text('Relatorio Fotografico', pageWidth / 2, currentY + 7, { align: 'center' });
-    doc.roundedRect(margin, currentY, contentWidth, 10, 1.5, 1.5);
-    currentY += 15;
-
     const photosMeta = Array.isArray(os.photosMeta) && os.photosMeta.length > 0
         ? os.photosMeta
         : (os.photoIds || []).map((id) => ({ id, note: '' }));
 
-    if (photosMeta.length > 0) {
-        const columnGap = 8;
-        const photoWidth = (contentWidth - columnGap) / 2;
-        const photoHeight = 54;
-        const cardPadding = 3.5;
-        const noteTopGap = 2.5;
-
-        const photoData = await Promise.all(
-            photosMeta.map(async (item) => {
-                const localBlob = item.id ? await getStoredPhotoBlob(item.id) : null;
-                const base64 = localBlob
-                    ? await normalizePhotoForPdf(localBlob)
-                    : await fetchRemotePhotoDataUrl(item);
-                return {
-                    base64,
-                    note: String(item.note || '').trim(),
-                    capturedAt: item.capturedAt || '',
-                };
-            })
-        );
-
-        const validPhotos = photoData.filter((item) => Boolean(item.base64));
-
-        const buildPhotoCard = (photo) => {
-            const timestamp = formatPhotoTimestamp(photo.capturedAt);
-            const noteText = sanitizeMultilineText(photo.note);
-            doc.setFontSize(7.5);
-            doc.setFont(undefined, 'normal');
-            const timestampLines = timestamp ? doc.splitTextToSize(timestamp, photoWidth - (cardPadding * 2)) : [];
-            doc.setFontSize(8);
-            const noteLines = doc.splitTextToSize(`Obs: ${noteText}`, photoWidth - (cardPadding * 2));
-            const noteLinesHeight = (timestampLines.length * 4) + (noteLines.length * 4.4);
-            const noteBoxHeight = Math.max(16, noteLinesHeight + noteTopGap + 2.5);
-            const totalHeight = photoHeight + noteBoxHeight + 3;
+    const columnGap = 8;
+    const photoWidth = (contentWidth - columnGap) / 2;
+    const cardPadding = 3.5;
+    const cardHeaderHeight = 7;
+    const imageAreaHeight = 54;
+    const timestampHeight = 8;
+    const noteLabelHeight = 5;
+    const noteLineHeight = 4.2;
+    const visibleNoteLineCount = 3;
+    const cardHeight = cardHeaderHeight + imageAreaHeight + timestampHeight + noteLabelHeight + (visibleNoteLineCount * noteLineHeight) + 4;
+    const photoData = await Promise.all(
+        photosMeta.map(async (item, index) => {
+            const localBlob = item.id ? await getStoredPhotoBlob(item.id) : null;
+            const base64 = localBlob
+                ? await normalizePhotoForPdf(localBlob)
+                : await fetchRemotePhotoDataUrl(item);
             return {
-                timestampLines,
-                noteLines,
-                noteBoxHeight,
-                totalHeight,
-                base64: photo.base64,
+                base64,
+                note: String(item.note || '').trim(),
+                capturedAt: item.capturedAt || '',
+                index: index + 1,
             };
+        })
+    );
+
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'normal');
+    const cards = photoData.map((photo) => {
+        const note = sanitizeMultilineText(photo.note, 'Sem observação registrada.');
+        const noteLines = doc.splitTextToSize(note, photoWidth - (cardPadding * 2));
+        const hasOverflow = noteLines.length > visibleNoteLineCount;
+        return {
+            ...photo,
+            label: `FOTO ${String(photo.index).padStart(2, '0')}`,
+            timestamp: formatPhotoTimestamp(photo.capturedAt) || 'Horário não registrado',
+            visibleNoteLines: hasOverflow
+                ? [...noteLines.slice(0, visibleNoteLineCount - 1), 'Continua em observações complementares.']
+                : noteLines,
+            overflowNote: hasOverflow ? note : '',
         };
+    });
 
-        const cards = validPhotos.map(buildPhotoCard);
+    const sectionHeight = 10;
+    const firstRowHeight = cards.length > 0 ? cardHeight : 15;
+    ensurePageSpace(sectionHeight + 5 + firstRowHeight);
+    doc.setFillColor(232, 238, 249);
+    doc.roundedRect(margin, currentY, contentWidth, sectionHeight, 1.5, 1.5, 'F');
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(30, 58, 138);
+    doc.text('Relatório Fotográfico', pageWidth / 2, currentY + 7, { align: 'center' });
+    doc.roundedRect(margin, currentY, contentWidth, sectionHeight, 1.5, 1.5);
+    currentY += sectionHeight + 5;
 
-        for (let i = 0; i < cards.length; i += 2) {
-            const rowCards = cards.slice(i, i + 2);
-            const rowHeight = Math.max(...rowCards.map((item) => item.totalHeight));
-            ensurePageSpace(rowHeight + 4);
+    if (cards.length === 0) {
+        doc.setDrawColor(203, 213, 225);
+        doc.roundedRect(margin, currentY, contentWidth, 15, 2, 2, 'S');
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(71, 85, 105);
+        doc.text('Nenhum registro fotográfico disponível.', pageWidth / 2, currentY + 9, { align: 'center' });
+        currentY += 20;
+    }
 
-            rowCards.forEach((card, index) => {
-                const photoX = margin + ((photoWidth + columnGap) * index);
-                const imageY = currentY;
-                const noteY = imageY + photoHeight;
+    const overflowNotes = [];
+    for (let i = 0; i < cards.length; i += 2) {
+        const rowCards = cards.slice(i, i + 2);
+        ensurePageSpace(cardHeight + 4);
 
-                doc.setDrawColor(203, 213, 225);
-                doc.roundedRect(photoX, imageY, photoWidth, rowHeight, 2, 2, 'S');
+        rowCards.forEach((card, columnIndex) => {
+            const photoX = margin + ((photoWidth + columnGap) * columnIndex);
+            const cardY = currentY;
+            const imageX = photoX + 0.8;
+            const imageY = cardY + cardHeaderHeight + 0.8;
+            const imageWidth = photoWidth - 1.6;
+            const imageHeight = imageAreaHeight - 1.6;
+            const timestampY = cardY + cardHeaderHeight + imageAreaHeight;
+            const noteY = timestampY + timestampHeight;
 
-                doc.addImage(card.base64, detectImageFormat(card.base64), photoX + 0.8, imageY + 0.8, photoWidth - 1.6, photoHeight - 1.6, undefined, 'FAST');
-                doc.setDrawColor(203, 213, 225);
-                doc.rect(photoX + 0.8, imageY + 0.8, photoWidth - 1.6, photoHeight - 1.6);
+            doc.setDrawColor(203, 213, 225);
+            doc.roundedRect(photoX, cardY, photoWidth, cardHeight, 2, 2, 'S');
 
-                doc.setFillColor(248, 250, 252);
-                doc.roundedRect(photoX, noteY, photoWidth, card.noteBoxHeight + 3, 2, 2, 'F');
-                doc.setDrawColor(226, 232, 240);
-                doc.line(photoX, noteY, photoX + photoWidth, noteY);
+            doc.setFillColor(232, 238, 249);
+            doc.roundedRect(photoX, cardY, photoWidth, cardHeaderHeight, 2, 2, 'F');
+            doc.setFont(undefined, 'bold');
+            doc.setFontSize(8);
+            doc.setTextColor(30, 58, 138);
+            doc.text(card.label, photoX + cardPadding, cardY + 4.8);
 
-                let textY = noteY + 5;
-                if (card.timestampLines.length) {
-                    doc.setFontSize(7.5);
-                    doc.setFont(undefined, 'normal');
-                    doc.setTextColor(71, 85, 105);
-                    doc.text(card.timestampLines, photoX + cardPadding, textY);
-                    textY += card.timestampLines.length * 4 + noteTopGap;
+            doc.setFillColor(241, 245, 249);
+            doc.rect(imageX, imageY, imageWidth, imageHeight, 'F');
+            doc.setDrawColor(203, 213, 225);
+            doc.rect(imageX, imageY, imageWidth, imageHeight);
+
+            if (card.base64) {
+                try {
+                    const dimensions = fitImageInBox(doc.getImageProperties(card.base64), imageWidth, imageHeight);
+                    if (!dimensions) throw new Error('Dimensões inválidas');
+                    const centeredX = imageX + ((imageWidth - dimensions.width) / 2);
+                    const centeredY = imageY + ((imageHeight - dimensions.height) / 2);
+                    doc.addImage(card.base64, detectImageFormat(card.base64), centeredX, centeredY, dimensions.width, dimensions.height, undefined, 'FAST');
+                } catch {
+                    doc.setFont(undefined, 'bold');
+                    doc.setFontSize(9);
+                    doc.setTextColor(100, 116, 139);
+                    doc.text('Imagem indisponível', photoX + (photoWidth / 2), imageY + (imageHeight / 2), { align: 'center' });
                 }
+            } else {
+                doc.setFont(undefined, 'bold');
+                doc.setFontSize(9);
+                doc.setTextColor(100, 116, 139);
+                doc.text('Imagem indisponível', photoX + (photoWidth / 2), imageY + (imageHeight / 2), { align: 'center' });
+            }
 
-                doc.setFontSize(8);
+            doc.setFillColor(248, 250, 252);
+            doc.rect(photoX, timestampY, photoWidth, timestampHeight, 'F');
+            doc.setDrawColor(226, 232, 240);
+            doc.line(photoX, timestampY, photoX + photoWidth, timestampY);
+            doc.setFont(undefined, 'normal');
+            doc.setFontSize(7.5);
+            doc.setTextColor(71, 85, 105);
+            doc.text(`REGISTRO: ${fitTextInWidth(doc, card.timestamp, photoWidth - (cardPadding * 2) - 18)}`, photoX + cardPadding, timestampY + 5);
+
+            doc.setFillColor(255, 255, 255);
+            doc.rect(photoX, noteY, photoWidth, cardHeight - (noteY - cardY), 'F');
+            doc.setFont(undefined, 'bold');
+            doc.setFontSize(7);
+            doc.setTextColor(71, 85, 105);
+            doc.text('OBSERVAÇÃO', photoX + cardPadding, noteY + 3.5);
+            doc.setFont(undefined, 'normal');
+            doc.setFontSize(8);
+            doc.setTextColor(15, 23, 42);
+            doc.text(card.visibleNoteLines, photoX + cardPadding, noteY + noteLabelHeight + 3.5);
+
+            if (card.overflowNote) {
+                overflowNotes.push(card);
+            }
+        });
+
+        currentY += cardHeight + 5;
+    }
+
+    if (overflowNotes.length > 0) {
+        ensurePageSpace(15);
+        doc.setFillColor(232, 238, 249);
+        doc.roundedRect(margin, currentY, contentWidth, 8, 1.5, 1.5, 'F');
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(30, 58, 138);
+        doc.text('Observações complementares', margin + 3, currentY + 5.4);
+        currentY += 12;
+
+        overflowNotes.forEach((card) => {
+            const lines = doc.splitTextToSize(`${card.label}: ${card.overflowNote}`, contentWidth - 6);
+            while (lines.length > 0) {
+                ensurePageSpace(10);
+                const maxLines = Math.max(1, Math.floor((pageHeight - 20 - currentY) / 4.5));
+                const visibleLines = lines.splice(0, maxLines);
                 doc.setFont(undefined, 'normal');
+                doc.setFontSize(8.5);
                 doc.setTextColor(15, 23, 42);
-                doc.text(card.noteLines, photoX + cardPadding, textY);
-            });
-
-            currentY += rowHeight + 5;
-        }
+                doc.text(visibleLines, margin + 3, currentY + 4);
+                currentY += (visibleLines.length * 4.5) + 4;
+            }
+        });
     }
 
     const totalPages = doc.getNumberOfPages();
@@ -333,7 +416,7 @@ export const buildPdfDocument = async (os) => {
         doc.setPage(page);
         doc.setFontSize(8);
         doc.setTextColor(100);
-        doc.text(`Erione Field | OS ${String(os.id || '').slice(0, 8)} | Pagina ${page}/${totalPages}`, margin, pageHeight - 7);
+        doc.text(`Erione Field | OS ${String(os.id || '').slice(0, 8)} | Página ${page}/${totalPages}`, margin, pageHeight - 7);
         doc.text(new Date(os.createdAt).toLocaleString('pt-BR'), pageWidth - margin, pageHeight - 7, { align: 'right' });
     }
 
