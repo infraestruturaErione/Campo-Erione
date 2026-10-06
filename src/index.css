@@ -1231,7 +1231,7 @@ select:focus {
 
 .admin-table-head {
     display: grid;
-    grid-template-columns: 1.6fr 1fr 1.1fr 1.2fr 1.2fr;
+    grid-template-columns: 1.6fr 1fr 1.1fr 1.45fr 1.2fr;
     gap: 0.6rem;
     padding: 0.6rem 0.75rem;
     font-size: 0.78rem;
@@ -1243,7 +1243,7 @@ select:focus {
 
 .admin-table-row {
     display: grid;
-    grid-template-columns: 1.6fr 1fr 1.1fr 1.2fr 1.2fr;
+    grid-template-columns: 1.6fr 1fr 1.1fr 1.45fr 1.2fr;
     gap: 0.6rem;
     align-items: center;
     border: 1px solid #2b3f5d;
@@ -1288,6 +1288,11 @@ select:focus {
     display: flex;
     gap: 0.6rem;
     flex-wrap: wrap;
+}
+
+.admin-role-label {
+    color: #dbeafe;
+    font-weight: 700;
 }
 
 .admin-summary-bar {

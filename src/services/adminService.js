@@ -14,7 +14,7 @@ const parseError = async (response) => {
         return 'Acesso restrito para administradores.';
     }
     if (response.status === 409) {
-        return 'Usuario ja cadastrado.';
+        return 'Usuário já cadastrado.';
     }
     return `Falha na operacao administrativa (HTTP ${response.status})`;
 };

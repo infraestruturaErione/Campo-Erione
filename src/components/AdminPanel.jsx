@@ -10,13 +10,14 @@ import {
     Users,
     UserCheck,
     UserX,
+    Pencil,
 } from 'lucide-react';
 import { createAdminUser, deleteAdminUser, fetchAdminUsers, updateAdminUser } from '../services/adminService';
 import { useToast } from './ui/ToastProvider';
 import ConfirmDialog from './ui/ConfirmDialog';
 
 const ROLE_OPTIONS = [
-    { value: 'technician', label: 'Tecnico' },
+    { value: 'technician', label: 'Técnico' },
     { value: 'admin', label: 'Administrador' },
 ];
 
@@ -45,6 +46,10 @@ function AdminPanel() {
     const [passwordTargetUser, setPasswordTargetUser] = useState(null);
     const [newPassword, setNewPassword] = useState('');
     const [passwordError, setPasswordError] = useState('');
+    const [editModalOpen, setEditModalOpen] = useState(false);
+    const [editTargetUser, setEditTargetUser] = useState(null);
+    const [editForm, setEditForm] = useState({ name: '', username: '', role: 'technician' });
+    const [editError, setEditError] = useState('');
     const [page, setPage] = useState(1);
     const [deleteTargetUser, setDeleteTargetUser] = useState(null);
 
@@ -56,7 +61,7 @@ function AdminPanel() {
             setUsers(items);
             setLastUpdatedAt(new Date());
         } catch (loadError) {
-            setError(loadError.message || 'Falha ao carregar usuarios');
+            setError(loadError.message || 'Falha ao carregar usuários');
         } finally {
             setLoading(false);
         }
@@ -97,7 +102,7 @@ function AdminPanel() {
         setCreateError('');
 
         if (String(form.password || '').length < 6) {
-            setCreateError('Senha inicial deve ter no minimo 6 caracteres.');
+            setCreateError('Senha inicial deve ter no mínimo 6 caracteres.');
             return;
         }
 
@@ -112,9 +117,9 @@ function AdminPanel() {
             setCreateModalOpen(false);
             await loadUsers();
             setPage(1);
-            toast.success('Usuario criado com sucesso.', 'Painel admin');
+            toast.success('Usuário criado com sucesso.', 'Painel administrativo');
         } catch (createRequestError) {
-            setCreateError(createRequestError.message || 'Nao foi possivel criar usuario');
+            setCreateError(createRequestError.message || 'Não foi possível criar usuário.');
         }
     };
 
@@ -123,9 +128,9 @@ function AdminPanel() {
         try {
             await updateAdminUser(userId, payload);
             await loadUsers();
-            toast.success('Usuario atualizado com sucesso.', 'Painel admin');
+            toast.success('Usuário atualizado com sucesso.', 'Painel administrativo');
         } catch (updateError) {
-            toast.error(updateError.message || 'Nao foi possivel atualizar usuario', 'Painel admin');
+            toast.error(updateError.message || 'Não foi possível atualizar usuário.', 'Painel administrativo');
         } finally {
             setSavingUserId('');
         }
@@ -138,9 +143,9 @@ function AdminPanel() {
             await loadUsers();
             setPage(1);
             setDeleteTargetUser(null);
-            toast.success('Usuario excluido com sucesso.', 'Painel admin');
+            toast.success('Usuário excluído com sucesso.', 'Painel administrativo');
         } catch (deleteError) {
-            toast.error(deleteError.message || 'Nao foi possivel excluir usuario', 'Painel admin');
+            toast.error(deleteError.message || 'Não foi possível excluir usuário.', 'Painel administrativo');
         } finally {
             setSavingUserId('');
         }
@@ -153,17 +158,54 @@ function AdminPanel() {
         setPasswordModalOpen(true);
     };
 
+    const openEditUser = (user) => {
+        setEditTargetUser(user);
+        setEditForm({ name: user.name, username: user.username, role: user.role });
+        setEditError('');
+        setEditModalOpen(true);
+    };
+
+    const submitUserEdit = async (event) => {
+        event.preventDefault();
+        setEditError('');
+
+        const name = editForm.name.trim();
+        const username = editForm.username.trim();
+        if (name.length < 3 || username.length < 3) {
+            setEditError('Nome e nome de usuário devem ter ao menos 3 caracteres.');
+            return;
+        }
+
+        if (!editTargetUser) {
+            setEditError('Usuário inválido para edição.');
+            return;
+        }
+
+        setSavingUserId(editTargetUser.id);
+        try {
+            await updateAdminUser(editTargetUser.id, { name, username, role: editForm.role });
+            setEditModalOpen(false);
+            setEditTargetUser(null);
+            await loadUsers();
+            toast.success('Usuário atualizado com sucesso.', 'Painel administrativo');
+        } catch (editRequestError) {
+            setEditError(editRequestError.message || 'Não foi possível atualizar o usuário.');
+        } finally {
+            setSavingUserId('');
+        }
+    };
+
     const submitPasswordReset = async (event) => {
         event.preventDefault();
         setPasswordError('');
 
         if (newPassword.length < 6) {
-            setPasswordError('A nova senha deve ter no minimo 6 caracteres.');
+            setPasswordError('A nova senha deve ter no mínimo 6 caracteres.');
             return;
         }
 
         if (!passwordTargetUser) {
-            setPasswordError('Usuario invalido para reset de senha.');
+            setPasswordError('Usuário inválido para redefinição de senha.');
             return;
         }
 
@@ -174,9 +216,9 @@ function AdminPanel() {
             setPasswordTargetUser(null);
             setNewPassword('');
             await loadUsers();
-            toast.success('Senha redefinida com sucesso.', 'Painel admin');
+            toast.success('Senha redefinida com sucesso.', 'Painel administrativo');
         } catch (resetError) {
-            setPasswordError(resetError.message || 'Nao foi possivel atualizar a senha');
+            setPasswordError(resetError.message || 'Não foi possível atualizar a senha.');
         } finally {
             setSavingUserId('');
         }
@@ -187,8 +229,8 @@ function AdminPanel() {
             <section className="admin-hero-card">
                 <div>
                     <p className="admin-eyebrow">Painel de Controle</p>
-                    <h2>Dashboard de Usuarios</h2>
-                    <p className="text-muted">Gestao de acessos internos e controle de perfis em um unico painel.</p>
+                    <h2>Dashboard de Usuários</h2>
+                    <p className="text-muted">Gestão de acessos internos e controle de perfis em um único painel.</p>
                 </div>
                 <div className="admin-hero-actions">
                     <button
@@ -200,7 +242,7 @@ function AdminPanel() {
                         }}
                     >
                         <UserPlus size={16} />
-                        Novo usuario
+                        Novo usuário
                     </button>
                     <button className="btn" style={{ background: '#334155', color: '#fff' }} onClick={() => loadUsers()} disabled={loading}>
                         <RefreshCcw size={16} className={loading ? 'animate-spin' : ''} />
@@ -213,14 +255,14 @@ function AdminPanel() {
                 <article className="admin-kpi-card">
                     <div className="admin-kpi-icon"><Users size={18} /></div>
                     <div>
-                        <p>Total de usuarios</p>
+                        <p>Total de usuários</p>
                         <h3>{stats.total}</h3>
                     </div>
                 </article>
                 <article className="admin-kpi-card">
                     <div className="admin-kpi-icon"><UserCheck size={18} /></div>
                     <div>
-                        <p>Usuarios ativos</p>
+                        <p>Usuários ativos</p>
                         <h3>{stats.active}</h3>
                     </div>
                 </article>
@@ -234,7 +276,7 @@ function AdminPanel() {
                 <article className="admin-kpi-card">
                     <div className="admin-kpi-icon"><UserX size={18} /></div>
                     <div>
-                        <p>Usuarios inativos</p>
+                        <p>Usuários inativos</p>
                         <h3>{stats.inactive}</h3>
                     </div>
                 </article>
@@ -252,7 +294,7 @@ function AdminPanel() {
                     >
                         <input
                             type="text"
-                            placeholder="Buscar por nome, usuario ou perfil"
+                            placeholder="Buscar por nome, usuário ou perfil"
                             value={search}
                             onChange={(event) => setSearch(event.target.value)}
                         />
@@ -287,14 +329,14 @@ function AdminPanel() {
                                 setPage(1);
                             }}
                         >
-                            Tecnicos
+                            Técnicos
                         </button>
                     </div>
                 </div>
 
                 <div className="admin-summary-bar">
-                    <span className="text-muted">Exibindo {filteredUsers.length} usuario(s)</span>
-                    <span className="text-muted">Ultima atualizacao: {lastUpdatedAt ? lastUpdatedAt.toLocaleTimeString('pt-BR') : '-'}</span>
+                    <span className="text-muted">Exibindo {filteredUsers.length} usuário(s)</span>
+                    <span className="text-muted">Última atualização: {lastUpdatedAt ? lastUpdatedAt.toLocaleTimeString('pt-BR') : '-'}</span>
                 </div>
 
                 {error && (
@@ -308,29 +350,29 @@ function AdminPanel() {
                     <div className="app-state-card admin-inline-state">
                         <div className="app-state-spinner animate-spin" />
                         <div>
-                            <h3>Atualizando painel de usuarios</h3>
-                            <p className="text-muted">Buscando perfis, status e permissoes cadastradas.</p>
+                            <h3>Atualizando painel de usuários</h3>
+                            <p className="text-muted">Buscando perfis, status e permissões cadastradas.</p>
                         </div>
                     </div>
                 ) : filteredUsers.length === 0 ? (
                     <div className="empty-state-card">
-                        <strong>Nenhum usuario encontrado.</strong>
+                        <strong>Nenhum usuário encontrado.</strong>
                         Ajuste os filtros ou crie um novo acesso para a equipe.
                     </div>
                 ) : (
                     <div className="admin-table">
                         <div className="admin-table-head">
-                            <span>Usuario</span>
+                            <span>Usuário</span>
                             <span>Perfil</span>
                             <span>Status</span>
-                            <span>Acoes</span>
+                            <span>Ações</span>
                             <span>Criado em</span>
                         </div>
 
                         {paginatedUsers.map((user) => (
                             <div key={user.id} className="admin-table-row">
                                 <div className="admin-cell">
-                                    <span className="admin-cell-label">Usuario</span>
+                                    <span className="admin-cell-label">Usuário</span>
                                     <div className="admin-user-title-row">
                                         <div className="admin-user-avatar">
                                             {user.role === 'admin' ? <Shield size={16} /> : <UserCircle2 size={16} />}
@@ -344,15 +386,9 @@ function AdminPanel() {
 
                                 <div className="admin-cell">
                                     <span className="admin-cell-label">Perfil</span>
-                                    <select
-                                        value={user.role}
-                                        onChange={(event) => handleUserUpdate(user.id, { role: event.target.value })}
-                                        disabled={savingUserId === user.id}
-                                    >
-                                        {ROLE_OPTIONS.map((roleOption) => (
-                                            <option key={roleOption.value} value={roleOption.value}>{roleOption.label}</option>
-                                        ))}
-                                    </select>
+                                    <span className="admin-role-label">
+                                        {user.role === 'admin' ? 'Administrador' : 'Técnico'}
+                                    </span>
                                 </div>
 
                                 <div className="admin-cell">
@@ -373,8 +409,18 @@ function AdminPanel() {
                                 </div>
 
                                 <div className="admin-cell">
-                                    <span className="admin-cell-label">Acoes</span>
+                                    <span className="admin-cell-label">Ações</span>
                                     <div className="admin-user-actions-row">
+                                        <button
+                                            type="button"
+                                            className="btn"
+                                            style={{ background: '#1d4ed8', color: '#fff', padding: '0.45rem 0.75rem' }}
+                                            onClick={() => openEditUser(user)}
+                                            disabled={savingUserId === user.id}
+                                        >
+                                            <Pencil size={16} />
+                                            Editar
+                                        </button>
                                         <button
                                             type="button"
                                             className="btn"
@@ -417,14 +463,14 @@ function AdminPanel() {
                         >
                             Anterior
                         </button>
-                        <span className="text-muted">Pagina {page} de {totalPages}</span>
+                        <span className="text-muted">Página {page} de {totalPages}</span>
                         <button
                             type="button"
                             className="btn"
                             onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
                             disabled={page >= totalPages}
                         >
-                            Proxima
+                            Próxima
                         </button>
                     </div>
                 )}
@@ -434,7 +480,7 @@ function AdminPanel() {
                 <div className="modal-backdrop" role="presentation" onClick={() => setCreateModalOpen(false)}>
                     <div className="modal-card admin-modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
                         <div className="modal-header">
-                            <h2>Novo usuario</h2>
+                            <h2>Novo usuário</h2>
                             <button type="button" className="icon-btn" onClick={() => setCreateModalOpen(false)} aria-label="Fechar modal">
                                 <X size={16} />
                             </button>
@@ -451,7 +497,7 @@ function AdminPanel() {
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Usuario</label>
+                                <label>Usuário</label>
                                 <input
                                     type="text"
                                     value={form.username}
@@ -483,8 +529,43 @@ function AdminPanel() {
                             {createError && <p className="login-error">{createError}</p>}
                             <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
                                 <UserPlus size={16} />
-                                Criar usuario
+                                Criar usuário
                             </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {editModalOpen && (
+                <div className="modal-backdrop" role="presentation" onClick={() => setEditModalOpen(false)}>
+                    <div className="modal-card admin-modal-card" role="dialog" aria-modal="true" aria-labelledby="edit-user-title" onClick={(event) => event.stopPropagation()}>
+                        <div className="modal-header">
+                            <h2 id="edit-user-title">Editar usuário</h2>
+                            <button type="button" className="icon-btn" onClick={() => setEditModalOpen(false)} aria-label="Fechar modal" disabled={Boolean(savingUserId)}>
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={submitUserEdit}>
+                            <div className="form-group">
+                                <label>Nome</label>
+                                <input type="text" value={editForm.name} onChange={(event) => setEditForm((prev) => ({ ...prev, name: event.target.value }))} autoFocus required />
+                            </div>
+                            <div className="form-group">
+                                <label>Nome de usuário</label>
+                                <input type="text" value={editForm.username} onChange={(event) => setEditForm((prev) => ({ ...prev, username: event.target.value }))} required />
+                            </div>
+                            <div className="form-group">
+                                <label>Perfil</label>
+                                <select value={editForm.role} onChange={(event) => setEditForm((prev) => ({ ...prev, role: event.target.value }))}>
+                                    {ROLE_OPTIONS.map((roleOption) => <option key={roleOption.value} value={roleOption.value}>{roleOption.label}</option>)}
+                                </select>
+                            </div>
+                            {editError ? <p className="form-error">{editError}</p> : null}
+                            <div className="modal-actions">
+                                <button type="button" className="btn" onClick={() => setEditModalOpen(false)} disabled={Boolean(savingUserId)}>Cancelar</button>
+                                <button type="submit" className="btn btn-primary" disabled={Boolean(savingUserId)}>{savingUserId ? 'Salvando...' : 'Salvar alterações'}</button>
+                            </div>
                         </form>
                     </div>
                 </div>
@@ -501,7 +582,7 @@ function AdminPanel() {
                         </div>
 
                         <p className="text-muted" style={{ marginBottom: '0.8rem' }}>
-                            Usuario: <strong>{passwordTargetUser?.name || '-'}</strong>
+                            Usuário: <strong>{passwordTargetUser?.name || '-'}</strong>
                         </p>
 
                         <form onSubmit={submitPasswordReset}>
@@ -527,10 +608,10 @@ function AdminPanel() {
 
             <ConfirmDialog
                 open={Boolean(deleteTargetUser)}
-                title="Excluir acesso deste usuario?"
+                title="Excluir acesso deste usuário?"
                 message="A conta sera removida do painel, mas o historico operacional permanece preservado."
-                confirmLabel="Excluir usuario"
-                cancelLabel="Manter usuario"
+                confirmLabel="Excluir usuário"
+                cancelLabel="Manter usuário"
                 loading={savingUserId === deleteTargetUser?.id}
                 onCancel={() => setDeleteTargetUser(null)}
                 onConfirm={() => deleteTargetUser && handleDeleteUser(deleteTargetUser)}
@@ -539,7 +620,7 @@ function AdminPanel() {
                     <div className="confirm-dialog-user-card">
                         <strong>{deleteTargetUser.name}</strong>
                         <span>@{deleteTargetUser.username}</span>
-                        <span>{deleteTargetUser.role === 'admin' ? 'Administrador' : 'Tecnico'}</span>
+                        <span>{deleteTargetUser.role === 'admin' ? 'Administrador' : 'Técnico'}</span>
                     </div>
                 ) : null}
             </ConfirmDialog>

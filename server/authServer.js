@@ -138,7 +138,7 @@ const userBaseSchema = {
         .trim()
         .min(3)
         .max(64)
-        .regex(/^[a-zA-Z0-9_.-]+$/, 'Usuario deve conter apenas letras, numeros, _, . ou -'),
+        .regex(/^[a-zA-Z0-9_.-]+$/, 'Usuário deve conter apenas letras, números, _, . ou -'),
     password: z.string().min(6).max(128),
     role: z.enum(['technician', 'admin']).default('technician'),
 };
@@ -147,10 +147,11 @@ const adminCreateUserSchema = z.object(userBaseSchema);
 
 const adminUpdateUserSchema = z.object({
     name: z.string().trim().min(3).max(100).optional(),
+    username: userBaseSchema.username.optional(),
     role: z.enum(['technician', 'admin']).optional(),
     isActive: z.boolean().optional(),
     password: z.string().min(6).max(128).optional(),
-});
+}).strict();
 
 const syncOperationSchema = z.discriminatedUnion('type', [
     z.object({
@@ -450,14 +451,14 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
         return sendSuccess(res, { items });
     } catch (error) {
         console.error('Erro ao listar usuarios', error);
-        return sendError(res, 500, 'Falha ao carregar usuarios');
+        return sendError(res, 500, 'Falha ao carregar usuários');
     }
 });
 
 app.post('/api/admin/users', requireAdmin, async (req, res) => {
     const parsed = adminCreateUserSchema.safeParse(req.body);
     if (!parsed.success) {
-        return sendError(res, 400, parsed.error.issues[0]?.message || 'Dados invalidos');
+        return sendError(res, 400, parsed.error.issues[0]?.message || 'Dados inválidos');
     }
 
     const { name, username, password, role } = parsed.data;
@@ -470,7 +471,7 @@ app.post('/api/admin/users', requireAdmin, async (req, res) => {
         );
 
         if (existing.rowCount > 0) {
-            return sendError(res, 409, 'Usuario ja cadastrado');
+            return sendError(res, 409, 'Usuário já cadastrado');
         }
 
         const passwordHash = await bcrypt.hash(password, 12);
@@ -483,7 +484,7 @@ app.post('/api/admin/users', requireAdmin, async (req, res) => {
         return sendSuccess(res, {}, 201);
     } catch (error) {
         console.error('Erro ao criar usuario', error);
-        return sendError(res, 500, 'Falha ao criar usuario');
+        return sendError(res, 500, 'Falha ao criar usuário');
     }
 });
 
@@ -492,21 +493,51 @@ app.patch('/api/admin/users/:userId', requireAdmin, async (req, res) => {
     const parsed = adminUpdateUserSchema.safeParse(req.body);
 
     if (!parsed.success || Object.keys(parsed.data).length === 0) {
-        return sendError(res, 400, 'Atualizacao invalida');
+        return sendError(res, 400, 'Atualização inválida');
     }
 
     try {
         const existing = await pool.query(
-            `SELECT id FROM users WHERE id = $1 LIMIT 1`,
+            `SELECT id, role, is_active FROM users WHERE id = $1 LIMIT 1`,
             [userId]
         );
 
         if (existing.rowCount === 0) {
-            return sendError(res, 404, 'Usuario nao encontrado');
+            return sendError(res, 404, 'Usuário não encontrado');
         }
 
         if (req.user.id === userId && parsed.data.isActive === false) {
-            return sendError(res, 400, 'Nao e permitido desativar o proprio usuario admin');
+            return sendError(res, 400, 'Não é permitido desativar o próprio usuário administrador');
+        }
+
+        if (req.user.id === userId && parsed.data.role && parsed.data.role !== 'admin') {
+            return sendError(res, 400, 'Não é permitido remover o próprio perfil de administrador');
+        }
+
+        const target = existing.rows[0];
+        const removesActiveAdmin = target.role === 'admin' && Boolean(target.is_active)
+            && (parsed.data.role === 'technician' || parsed.data.isActive === false);
+
+        if (removesActiveAdmin) {
+            const activeAdmins = await pool.query(
+                `SELECT id FROM users WHERE role = 'admin' AND is_active = 1`
+            );
+            if (activeAdmins.rowCount <= 1) {
+                return sendError(res, 400, 'O sistema precisa manter ao menos um administrador ativo');
+            }
+        }
+
+        let normalizedUsername;
+        if (parsed.data.username) {
+            normalizedUsername = parsed.data.username.toLowerCase();
+            const usernameInUse = await pool.query(
+                `SELECT id FROM users WHERE LOWER(username) = $1 AND id <> $2 LIMIT 1`,
+                [normalizedUsername, userId]
+            );
+
+            if (usernameInUse.rowCount > 0) {
+                return sendError(res, 409, 'Nome de usuário já cadastrado');
+            }
         }
 
         const updates = [];
@@ -515,6 +546,11 @@ app.patch('/api/admin/users/:userId', requireAdmin, async (req, res) => {
         if (parsed.data.name) {
             values.push(parsed.data.name);
             updates.push(`name = $${values.length}`);
+        }
+
+        if (normalizedUsername) {
+            values.push(normalizedUsername);
+            updates.push(`username = $${values.length}`);
         }
 
         if (parsed.data.role) {
@@ -546,7 +582,7 @@ app.patch('/api/admin/users/:userId', requireAdmin, async (req, res) => {
         return sendSuccess(res);
     } catch (error) {
         console.error('Erro ao atualizar usuario', error);
-        return sendError(res, 500, 'Falha ao atualizar usuario');
+        return sendError(res, 500, 'Falha ao atualizar usuário');
     }
 });
 
@@ -555,16 +591,26 @@ app.delete('/api/admin/users/:userId', requireAdmin, async (req, res) => {
 
     try {
         const existing = await pool.query(
-            `SELECT id FROM users WHERE id = $1 LIMIT 1`,
+            `SELECT id, role, is_active FROM users WHERE id = $1 LIMIT 1`,
             [userId]
         );
 
         if (existing.rowCount === 0) {
-            return sendError(res, 404, 'Usuario nao encontrado');
+            return sendError(res, 404, 'Usuário não encontrado');
         }
 
         if (req.user.id === userId) {
-            return sendError(res, 400, 'Nao e permitido excluir o proprio usuario admin');
+            return sendError(res, 400, 'Não é permitido excluir o próprio usuário administrador');
+        }
+
+        const target = existing.rows[0];
+        if (target.role === 'admin' && Boolean(target.is_active)) {
+            const activeAdmins = await pool.query(
+                `SELECT id FROM users WHERE role = 'admin' AND is_active = 1`
+            );
+            if (activeAdmins.rowCount <= 1) {
+                return sendError(res, 400, 'O sistema precisa manter ao menos um administrador ativo');
+            }
         }
 
         await pool.query(`DELETE FROM auth_sessions WHERE user_id = $1`, [userId]);
@@ -573,7 +619,7 @@ app.delete('/api/admin/users/:userId', requireAdmin, async (req, res) => {
         return sendSuccess(res);
     } catch (error) {
         console.error('Erro ao excluir usuario', error);
-        return sendError(res, 500, 'Falha ao excluir usuario');
+        return sendError(res, 500, 'Falha ao excluir usuário');
     }
 });
 
