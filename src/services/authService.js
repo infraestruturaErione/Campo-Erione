@@ -131,6 +131,43 @@ export const getSession = async () => {
     return payload.user;
 };
 
+export const changeTemporaryPassword = async (password, passwordConfirmation) => {
+    const data = { password, passwordConfirmation };
+
+    if (isNativeApiRuntime) {
+        const response = await CapacitorHttp.post({
+            url: `${AUTH_BASE}/change-temporary-password`,
+            headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
+            data,
+            connectTimeout: 12000,
+            readTimeout: 12000,
+        });
+
+        if (response.status < 200 || response.status >= 300) {
+            throw new Error(parseNativeError(response));
+        }
+
+        const user = response.data?.user ?? null;
+        cacheOfflineUser(user);
+        return user;
+    }
+
+    const response = await fetchWithTimeout(`${AUTH_BASE}/change-temporary-password`, {
+        method: 'POST',
+        headers: buildAuthHeaders({ 'Content-Type': 'application/json' }),
+        credentials: 'include',
+        body: JSON.stringify(data),
+    }, 12000);
+
+    if (!response.ok) {
+        throw new Error(await parseError(response));
+    }
+
+    const payload = await response.json();
+    cacheOfflineUser(payload.user);
+    return payload.user;
+};
+
 export const logout = async () => {
     if (isNativeApiRuntime) {
         await CapacitorHttp.post({

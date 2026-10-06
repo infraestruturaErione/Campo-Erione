@@ -3,12 +3,16 @@ CREATE TABLE IF NOT EXISTS users (
     name TEXT NOT NULL,
     username VARCHAR(64) NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
+    must_change_password TINYINT(1) NOT NULL DEFAULT 0,
     role VARCHAR(20) NOT NULL DEFAULT 'technician',
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT users_role_check CHECK (role IN ('admin', 'technician'))
 );
+
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS must_change_password TINYINT(1) NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS auth_sessions (
     id CHAR(36) PRIMARY KEY,

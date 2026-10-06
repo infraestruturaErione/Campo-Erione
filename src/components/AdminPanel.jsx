@@ -11,6 +11,7 @@ import {
     UserCheck,
     UserX,
     Pencil,
+    Power,
 } from 'lucide-react';
 import { createAdminUser, deleteAdminUser, fetchAdminUsers, updateAdminUser } from '../services/adminService';
 import { useToast } from './ui/ToastProvider';
@@ -397,14 +398,6 @@ function AdminPanel() {
                                         <span className={`admin-status-pill ${user.isActive ? 'is-active' : 'is-inactive'}`}>
                                             {user.isActive ? 'Ativo' : 'Inativo'}
                                         </span>
-                                        <button
-                                            type="button"
-                                            className="btn admin-status-btn"
-                                            onClick={() => handleUserUpdate(user.id, { isActive: !user.isActive })}
-                                            disabled={savingUserId === user.id}
-                                        >
-                                            {user.isActive ? 'Desativar' : 'Ativar'}
-                                        </button>
                                     </div>
                                 </div>
 
@@ -413,33 +406,43 @@ function AdminPanel() {
                                     <div className="admin-user-actions-row">
                                         <button
                                             type="button"
-                                            className="btn"
-                                            style={{ background: '#1d4ed8', color: '#fff', padding: '0.45rem 0.75rem' }}
+                                            className="btn admin-action-icon admin-action-edit"
                                             onClick={() => openEditUser(user)}
                                             disabled={savingUserId === user.id}
+                                            title="Editar usuário"
+                                            aria-label="Editar usuário"
                                         >
                                             <Pencil size={16} />
-                                            Editar
                                         </button>
                                         <button
                                             type="button"
-                                            className="btn"
-                                            style={{ background: '#075985', color: '#fff', padding: '0.45rem 0.75rem' }}
+                                            className="btn admin-action-icon admin-action-password"
                                             onClick={() => openResetPassword(user)}
                                             disabled={savingUserId === user.id}
+                                            title="Alterar senha"
+                                            aria-label="Alterar senha"
                                         >
                                             <KeyRound size={16} />
-                                            Senha
                                         </button>
                                         <button
                                             type="button"
-                                            className="btn"
-                                            style={{ background: '#991b1b', color: '#fff', padding: '0.45rem 0.75rem' }}
+                                            className={`btn admin-action-icon ${user.isActive ? 'admin-action-deactivate' : 'admin-action-activate'}`}
+                                            onClick={() => handleUserUpdate(user.id, { isActive: !user.isActive })}
+                                            disabled={savingUserId === user.id}
+                                            title={user.isActive ? 'Desativar usuário' : 'Ativar usuário'}
+                                            aria-label={user.isActive ? 'Desativar usuário' : 'Ativar usuário'}
+                                        >
+                                            <Power size={16} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="btn admin-action-icon admin-action-delete"
                                             onClick={() => setDeleteTargetUser(user)}
                                             disabled={savingUserId === user.id}
+                                            title="Excluir usuário"
+                                            aria-label="Excluir usuário"
                                         >
                                             <Trash2 size={16} />
-                                            Excluir
                                         </button>
                                     </div>
                                 </div>
@@ -506,7 +509,7 @@ function AdminPanel() {
                                 />
                             </div>
                             <div className="form-group">
-                                <label>Senha inicial</label>
+                                <label>Senha temporária</label>
                                 <input
                                     type="password"
                                     value={form.password}
@@ -587,7 +590,7 @@ function AdminPanel() {
 
                         <form onSubmit={submitPasswordReset}>
                             <div className="form-group">
-                                <label>Nova senha</label>
+                                <label>Nova senha temporária</label>
                                 <input
                                     type="password"
                                     value={newPassword}
@@ -597,6 +600,9 @@ function AdminPanel() {
                                 />
                             </div>
                             {passwordError && <p className="login-error">{passwordError}</p>}
+                            <p className="text-muted" style={{ fontSize: '0.82rem', marginBottom: '0.8rem' }}>
+                                O usuário deverá definir uma nova senha no próximo acesso.
+                            </p>
                             <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
                                 <KeyRound size={16} />
                                 Salvar nova senha

@@ -4,7 +4,8 @@ import OSForm from './components/OSForm';
 import OSList from './components/OSList';
 import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
-import { getSession, login, logout } from './services/authService';
+import TemporaryPasswordChange from './components/TemporaryPasswordChange';
+import { changeTemporaryPassword, getSession, login, logout } from './services/authService';
 import { logProgress, logSystemStartup } from './services/progressLog';
 import { getSyncState, syncPendingOperations } from './services/syncService';
 import { subscribe, EVENTS } from './events/eventBus';
@@ -16,6 +17,7 @@ function App() {
     const [currentUser, setCurrentUser] = useState(null);
     const [authLoading, setAuthLoading] = useState(true);
     const [loginLoading, setLoginLoading] = useState(false);
+    const [passwordChangeLoading, setPasswordChangeLoading] = useState(false);
     const [syncing, setSyncing] = useState(false);
     const [syncState, setSyncState] = useState(getSyncState());
     const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -112,6 +114,18 @@ function App() {
         toast.info('Sessao encerrada com seguranca.', 'Saida concluida');
     };
 
+    const handleTemporaryPasswordChange = async (password, passwordConfirmation) => {
+        setPasswordChangeLoading(true);
+        try {
+            const user = await changeTemporaryPassword(password, passwordConfirmation);
+            setCurrentUser(user);
+            setActiveTab(user?.role === 'admin' ? 'admin' : 'nova');
+            toast.success('Senha definida com sucesso.', 'Acesso liberado');
+        } finally {
+            setPasswordChangeLoading(false);
+        }
+    };
+
     const handleSyncNow = async () => {
         setSyncing(true);
         await syncPendingOperations();
@@ -171,6 +185,16 @@ function App() {
 
     if (!currentUser) {
         return <Login onSubmit={handleLogin} loading={loginLoading} />;
+    }
+
+    if (currentUser.mustChangePassword) {
+        return (
+            <TemporaryPasswordChange
+                loading={passwordChangeLoading}
+                onSubmit={handleTemporaryPasswordChange}
+                onLogout={handleLogout}
+            />
+        );
     }
 
     return (

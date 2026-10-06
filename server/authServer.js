@@ -153,6 +153,14 @@ const adminUpdateUserSchema = z.object({
     password: z.string().min(6).max(128).optional(),
 }).strict();
 
+const changeTemporaryPasswordSchema = z.object({
+    password: z.string().min(6).max(128),
+    passwordConfirmation: z.string().min(6).max(128),
+}).strict().refine((value) => value.password === value.passwordConfirmation, {
+    message: 'A confirmação da senha não confere',
+    path: ['passwordConfirmation'],
+});
+
 const syncOperationSchema = z.discriminatedUnion('type', [
     z.object({
         type: z.literal('UPSERT'),
@@ -183,6 +191,7 @@ const toSafeUser = (row) => ({
     username: row.username,
     role: row.role,
     isActive: row.is_active,
+    mustChangePassword: Boolean(row.must_change_password),
     createdAt: row.created_at,
 });
 
@@ -290,7 +299,7 @@ const resolveCurrentUser = async (req) => {
 
     await pool.query(`DELETE FROM auth_sessions WHERE expires_at <= NOW()`);
     const result = await pool.query(
-        `SELECT u.id, u.name, u.username, u.role, u.is_active, u.created_at
+        `SELECT u.id, u.name, u.username, u.role, u.is_active, u.must_change_password, u.created_at
          FROM auth_sessions s
          JOIN users u ON u.id = s.user_id
          WHERE s.id = $1 AND s.expires_at > NOW() AND u.is_active = TRUE
@@ -320,12 +329,24 @@ const requireAuth = async (req, res, next) => {
     }
 };
 
+const requireFullAccess = async (req, res, next) => {
+    await requireAuth(req, res, () => {
+        if (req.user.must_change_password) {
+            return sendError(res, 403, 'Troca de senha obrigatória antes de continuar');
+        }
+        return next();
+    });
+};
+
 const requireAdmin = async (req, res, next) => {
     try {
         const user = await resolveCurrentUser(req);
         if (!user) {
             clearSessionCookie(res);
             return sendError(res, 401, 'Sessao invalida');
+        }
+        if (user.must_change_password) {
+            return sendError(res, 403, 'Troca de senha obrigatória antes de continuar');
         }
         if (user.role !== 'admin') {
             return sendError(res, 403, 'Acesso restrito para administradores');
@@ -361,7 +382,7 @@ app.post('/api/auth/login', async (req, res) => {
 
     try {
         const result = await pool.query(
-            `SELECT id, name, username, role, password_hash, is_active, created_at
+            `SELECT id, name, username, role, password_hash, is_active, must_change_password, created_at
              FROM users
              WHERE LOWER(username) = $1
              LIMIT 1`,
@@ -476,8 +497,8 @@ app.post('/api/admin/users', requireAdmin, async (req, res) => {
 
         const passwordHash = await bcrypt.hash(password, 12);
         await pool.query(
-            `INSERT INTO users (id, name, username, password_hash, role)
-             VALUES ($1, $2, $3, $4, $5)`,
+            `INSERT INTO users (id, name, username, password_hash, role, must_change_password)
+             VALUES ($1, $2, $3, $4, $5, TRUE)`,
             [randomUUID(), name, normalizedUsername, passwordHash, role]
         );
 
@@ -563,10 +584,12 @@ app.patch('/api/admin/users/:userId', requireAdmin, async (req, res) => {
             updates.push(`is_active = $${values.length}`);
         }
 
-        if (parsed.data.password) {
+        const passwordWasReset = Boolean(parsed.data.password);
+        if (passwordWasReset) {
             const hash = await bcrypt.hash(parsed.data.password, 12);
             values.push(hash);
             updates.push(`password_hash = $${values.length}`);
+            updates.push('must_change_password = TRUE');
         }
 
         values.push(userId);
@@ -578,6 +601,10 @@ app.patch('/api/admin/users/:userId', requireAdmin, async (req, res) => {
              WHERE id = $${values.length}`,
             values
         );
+
+        if (passwordWasReset) {
+            await pool.query(`DELETE FROM auth_sessions WHERE user_id = $1`, [userId]);
+        }
 
         return sendSuccess(res);
     } catch (error) {
@@ -623,7 +650,7 @@ app.delete('/api/admin/users/:userId', requireAdmin, async (req, res) => {
     }
 });
 
-app.post('/api/sync/os', requireAuth, async (req, res) => {
+app.post('/api/sync/os', requireFullAccess, async (req, res) => {
     const parsed = syncOperationSchema.safeParse(req.body);
     if (!parsed.success) {
         return sendError(res, 400, 'Operacao de sync invalida');
@@ -658,7 +685,7 @@ app.post('/api/sync/os', requireAuth, async (req, res) => {
     }
 });
 
-app.post('/api/media/upload', requireAuth, upload.single('file'), async (req, res) => {
+app.post('/api/media/upload', requireFullAccess, upload.single('file'), async (req, res) => {
     const file = req.file;
     const osId = String(req.body?.osId || '');
 
@@ -690,7 +717,7 @@ app.post('/api/media/upload', requireAuth, upload.single('file'), async (req, re
     }
 });
 
-app.post('/api/media/upload-base64', requireAuth, async (req, res) => {
+app.post('/api/media/upload-base64', requireFullAccess, async (req, res) => {
     const parsed = mediaUploadBase64Schema.safeParse(req.body);
     if (!parsed.success) {
         return sendError(res, 400, parsed.error.issues[0]?.message || 'Payload de imagem invalido');
@@ -727,7 +754,7 @@ app.post('/api/media/upload-base64', requireAuth, async (req, res) => {
     }
 });
 
-app.get('/api/media/object', requireAuth, async (req, res) => {
+app.get('/api/media/object', requireFullAccess, async (req, res) => {
     const objectKey = String(req.query.key || '').trim();
     if (!objectKey || objectKey.length > 500) {
         return sendError(res, 400, 'Objeto de imagem invalido');
@@ -784,6 +811,36 @@ app.get('/api/admin/os', requireAdmin, async (req, res) => {
     } catch (error) {
         console.error('Erro ao listar OS para admin', error);
         return sendError(res, 500, 'Falha ao carregar OS');
+    }
+});
+
+app.post('/api/auth/change-temporary-password', requireAuth, async (req, res) => {
+    const parsed = changeTemporaryPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+        return sendError(res, 400, parsed.error.issues[0]?.message || 'Dados inválidos');
+    }
+
+    if (!req.user.must_change_password) {
+        return sendError(res, 409, 'Não há troca de senha pendente');
+    }
+
+    try {
+        const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+        await pool.query(
+            `UPDATE users
+             SET password_hash = $1,
+                 must_change_password = FALSE,
+                 updated_at = NOW()
+             WHERE id = $2`,
+            [passwordHash, req.user.id]
+        );
+
+        return sendSuccess(res, {
+            user: toSafeUser({ ...req.user, must_change_password: false }),
+        });
+    } catch (error) {
+        console.error('Erro ao trocar senha temporária', error);
+        return sendError(res, 500, 'Falha ao trocar senha');
     }
 });
 

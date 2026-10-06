@@ -684,6 +684,24 @@ select:focus {
     text-align: center;
 }
 
+.temporary-password-heading {
+    display: flex;
+    gap: 0.7rem;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+    color: #bfdbfe;
+}
+
+.temporary-password-heading h1 {
+    text-align: left;
+    margin-bottom: 0.25rem;
+}
+
+.temporary-password-heading .login-subtitle {
+    margin-bottom: 0;
+    text-align: left;
+}
+
 .login-subtitle {
     margin-bottom: 0.55rem;
     text-align: center;
@@ -1286,8 +1304,36 @@ select:focus {
 
 .admin-user-actions-row {
     display: flex;
-    gap: 0.6rem;
-    flex-wrap: wrap;
+    gap: 0.35rem;
+    flex-wrap: nowrap;
+}
+
+.admin-action-icon {
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    justify-content: center;
+}
+
+.admin-action-edit {
+    background: #1d4ed8;
+    color: #fff;
+}
+
+.admin-action-password {
+    background: #075985;
+    color: #fff;
+}
+
+.admin-action-activate {
+    background: #047857;
+    color: #fff;
+}
+
+.admin-action-deactivate,
+.admin-action-delete {
+    background: #991b1b;
+    color: #fff;
 }
 
 .admin-role-label {
@@ -1790,8 +1836,8 @@ select:focus {
         min-height: 42px;
     }
 
-    .admin-user-actions-row .btn {
-        width: 100%;
+    .admin-user-actions-row .admin-action-icon {
+        width: 2.25rem;
     }
 
     .status-banner {
