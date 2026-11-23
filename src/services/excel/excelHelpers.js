@@ -7,7 +7,7 @@ export const styleCell = (cell, { font, fill, border, alignment }) => {
 
 export const drawRow = (worksheet, row, config, theme) => {
     const r = worksheet.getRow(row);
-    r.height = 24;
+    r.height = config.height || 24;
 
     const lbl = r.getCell(1);
     lbl.value = config.label1;
@@ -24,7 +24,7 @@ export const drawRow = (worksheet, row, config, theme) => {
     styleCell(val1, {
         font: theme.font.normal,
         fill: theme.fill.value,
-        alignment: { horizontal: 'left', vertical: 'middle', indent: 1 },
+        alignment: { horizontal: 'left', vertical: 'middle', indent: 1, wrapText: Boolean(config.wrapText) },
         border: theme.border.subtle
     });
     for (let c = 2; c <= config.mergeEnd1; c++) {
@@ -33,7 +33,10 @@ export const drawRow = (worksheet, row, config, theme) => {
     }
 
     if (config.label2) {
-        const lbl2 = r.getCell(config.label2Col || 5);
+        const label2Col = config.label2Col || 5;
+        const value2Col = config.value2Col || 6;
+        const mergeEnd2 = config.mergeEnd2 || value2Col;
+        const lbl2 = r.getCell(label2Col);
         lbl2.value = config.label2;
         styleCell(lbl2, {
             font: theme.font.label,
@@ -42,14 +45,21 @@ export const drawRow = (worksheet, row, config, theme) => {
             alignment: { horizontal: 'left', vertical: 'middle' }
         });
 
-        const val2 = r.getCell(config.value2Col || 6);
+        if (mergeEnd2 > value2Col) {
+            worksheet.mergeCells(row, value2Col, row, mergeEnd2);
+        }
+        const val2 = r.getCell(value2Col);
         val2.value = config.value2;
         styleCell(val2, {
             font: theme.font.normal,
             fill: theme.fill.value,
-            alignment: { horizontal: 'center', vertical: 'middle' },
+            alignment: { horizontal: config.value2Align || 'center', vertical: 'middle', wrapText: Boolean(config.wrapText2) },
             border: theme.border.subtle
         });
+        for (let c = value2Col; c <= mergeEnd2; c++) {
+            r.getCell(c).border = theme.border.subtle;
+            r.getCell(c).fill = theme.fill.value;
+        }
     } else if (config.mergeEnd1 < 6) {
         for (let c = config.mergeEnd1 + 1; c <= 6; c++) {
             r.getCell(c).border = theme.border.subtle;
@@ -66,7 +76,7 @@ export const drawBigBox = (worksheet, startRow, title, content, theme) => {
     const estimatedLines = normalized
         .split('\n')
         .reduce((total, line) => total + Math.max(1, Math.ceil(line.length / 92)), 0);
-    const contentRows = Math.min(8, Math.max(3, estimatedLines));
+    const contentRows = Math.max(3, estimatedLines);
 
     worksheet.mergeCells(startRow, 1, startRow, 6);
     const lbl = worksheet.getCell(startRow, 1);

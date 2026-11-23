@@ -62,6 +62,12 @@ export function OSCard({ os, showCreator = false, allowRemoteDelete = false, onD
                     <label>Local</label>
                     <p>{os.local}</p>
                 </div>
+                {os.condicaoClimatica && (
+                    <div>
+                        <label>Clima</label>
+                        <p>{os.condicaoClimatica}</p>
+                    </div>
+                )}
             </div>
 
             <div style={{ marginTop: '1rem' }}>

@@ -47,6 +47,10 @@ const osPayloadSchema = z.object({
     horarioInicio: z.string().trim().min(1).max(10),
     horarioFim: z.string().trim().min(1).max(10),
     local: z.string().trim().max(120).optional().default(''),
+    condicaoClimatica: z.union([
+        z.enum(['Ensolarado', 'Nublado', 'Chuva forte', 'Chuvisco']),
+        z.literal(''),
+    ]).optional().default(''),
     segurancaTrabalho: z.string().trim().max(4000).optional().default(''),
     descricao: z.string().trim().min(1).max(12000),
     ocorrencias: z.string().trim().max(4000).optional().default(''),

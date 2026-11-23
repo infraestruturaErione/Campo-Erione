@@ -29,6 +29,7 @@ const INITIAL_FORM_STATE = {
     horarioInicio: '08:00',
     horarioFim: '18:00',
     local: '',
+    condicaoClimatica: '',
     segurancaTrabalho: 'Equipe com treinamento em NR 10 e 35, utilizacao de EPIs por funcao e tarefa, utilizacao de EPCs e sinalizacao de seguranca.',
     descricao: '',
     ocorrencias: '',
@@ -215,6 +216,10 @@ function OSForm({ onSuccess, currentUser }) {
         }
 
         if (step === 1) {
+            if (!formData.condicaoClimatica) {
+                toast.info('Selecione a condição climática.', 'Formulario');
+                return false;
+            }
             if (!formData.descricao) {
                 toast.info('A descricao detalhada e obrigatoria para salvar a OS.', 'Formulario');
                 return false;
@@ -457,6 +462,22 @@ function OSForm({ onSuccess, currentUser }) {
                         </div>
 
                         <div className="form-group">
+                            <label>CONDIÇÃO CLIMÁTICA</label>
+                            <select
+                                name="condicaoClimatica"
+                                required
+                                value={formData.condicaoClimatica}
+                                onChange={handleChange}
+                            >
+                                <option value="">Selecione</option>
+                                <option value="Ensolarado">Ensolarado</option>
+                                <option value="Nublado">Nublado</option>
+                                <option value="Chuva forte">Chuva forte</option>
+                                <option value="Chuvisco">Chuvisco</option>
+                            </select>
+                        </div>
+
+                        <div className="form-group">
                             <label>SEGURANCA DO TRABALHO</label>
                             <textarea name="segurancaTrabalho" rows={3} value={formData.segurancaTrabalho} onChange={handleChange} />
                         </div>
@@ -530,6 +551,10 @@ function OSForm({ onSuccess, currentUser }) {
                                     <div>
                                         <span>Local</span>
                                         <strong>{formData.local || 'Nao informado'}</strong>
+                                    </div>
+                                    <div>
+                                        <span>Condição climática</span>
+                                        <strong>{formData.condicaoClimatica || 'Nao informado'}</strong>
                                     </div>
                                     <div>
                                         <span>Status</span>

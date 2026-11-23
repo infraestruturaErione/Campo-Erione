@@ -73,24 +73,54 @@ const buildExcelWorkbook = async (os) => {
         theme
     );
 
-    drawRow(worksheet, 5, {
-        label1: 'RESPONSAVEL ERIONE:', value1: os.responsavelContratada || '-', mergeEnd1: 6,
-    }, theme);
+    let detailsRow = 5;
 
-    drawRow(worksheet, 6, {
+    const registeredBy = String(os.ownerName || os.ownerUsername || '').trim();
+    drawRow(worksheet, detailsRow, registeredBy && registeredBy !== '-'
+        ? {
+            label1: 'RESPONSAVEL ERIONE:', value1: os.responsavelContratada || '-', mergeEnd1: 4,
+            label2: 'REGISTRADO POR:', value2: registeredBy,
+            value2Align: 'left', wrapText2: true,
+        }
+        : {
+            label1: 'RESPONSAVEL ERIONE:', value1: os.responsavelContratada || '-', mergeEnd1: 6,
+        }, theme);
+    detailsRow += 1;
+
+    const equipe = String(os.equipe || '').trim();
+    if (equipe) {
+        const equipeLines = Math.max(1, Math.ceil(equipe.length / 85));
+        drawRow(worksheet, detailsRow, {
+            label1: 'EQUIPE:', value1: equipe, mergeEnd1: 6,
+            wrapText: true,
+            height: Math.max(24, equipeLines * 18),
+        }, theme);
+        detailsRow += 1;
+    }
+
+    drawRow(worksheet, detailsRow, {
         label1: 'OBRA:', value1: os.obraEquipamento || '-', mergeEnd1: 6,
     }, theme);
+    detailsRow += 1;
 
-    drawRow(worksheet, 7, {
+    drawRow(worksheet, detailsRow, {
         label1: 'HORARIO INICIO:', value1: os.horarioInicio || '-', mergeEnd1: 4,
         label2: 'HORARIO FIM:', value2: os.horarioFim || '-',
     }, theme);
+    detailsRow += 1;
 
-    drawRow(worksheet, 8, {
-        label1: 'LOCAL:', value1: os.local || '-', mergeEnd1: 6,
-    }, theme);
+    const condicaoClimatica = String(os.condicaoClimatica || '').trim();
+    drawRow(worksheet, detailsRow, condicaoClimatica
+        ? {
+            label1: 'LOCAL:', value1: os.local || '-', mergeEnd1: 4,
+            label2: 'CONDIÇÃO CLIMÁTICA:', value2: condicaoClimatica,
+        }
+        : {
+            label1: 'LOCAL:', value1: os.local || '-', mergeEnd1: 6,
+        }, theme);
+    detailsRow += 1;
 
-    let nextY = drawBigBox(worksheet, 10, 'Implantacao de Seguranca do Trabalho:', os.segurancaTrabalho || '-', theme);
+    let nextY = drawBigBox(worksheet, detailsRow + 1, 'Implantacao de Seguranca do Trabalho:', os.segurancaTrabalho || '-', theme);
     nextY = drawBigBox(worksheet, nextY + 1, 'Descricao Detalhada:', os.descricao || '-', theme);
     nextY = drawBigBox(worksheet, nextY + 1, 'Ocorrencias:', os.ocorrencias || '-', theme);
 

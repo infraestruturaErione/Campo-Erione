@@ -24,6 +24,7 @@ const normalizeFormData = (formData) => ({
     horarioInicio: normalizeTextField(formData.horarioInicio),
     horarioFim: normalizeTextField(formData.horarioFim),
     local: normalizeTextField(formData.local),
+    condicaoClimatica: normalizeTextField(formData.condicaoClimatica),
     segurancaTrabalho: normalizeTextField(formData.segurancaTrabalho),
     descricao: normalizeTextField(formData.descricao),
     ocorrencias: normalizeTextField(formData.ocorrencias),

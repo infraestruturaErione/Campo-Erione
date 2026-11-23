@@ -81,6 +81,7 @@ export const fetchAdminOS = async ({ search = '', status = '' } = {}) => {
             horarioInicio: source.horarioInicio || '-',
             horarioFim: source.horarioFim || '-',
             local: source.local || '-',
+            condicaoClimatica: source.condicaoClimatica || '',
             descricao: source.descricao || '-',
             ocorrencias: source.ocorrencias || '',
             createdAt: item.createdAt || source.createdAt || item.updatedAt,

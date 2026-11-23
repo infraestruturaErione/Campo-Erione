@@ -189,51 +189,114 @@ export const buildPdfDocument = async (os) => {
         doc.text(safeValue, x + 3, y + 10.5);
     };
 
+    const drawWrappedInfoBox = (label, value, x, y, width) => {
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        const valueLines = doc.splitTextToSize(sanitizeMultilineText(value), width - 6);
+        const height = Math.max(15, 10 + (valueLines.length * 4.2));
+
+        doc.setDrawColor(203, 213, 225);
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(x, y, width, height, 2, 2, 'S');
+        doc.setFontSize(7);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(71, 85, 105);
+        doc.text(label, x + 3, y + 4.5);
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(15, 23, 42);
+        doc.text(valueLines, x + 3, y + 10.5);
+
+        return height;
+    };
+
     const gap = 6;
     const wideLeft = 116;
     const narrowRight = contentWidth - wideLeft - gap;
+    const halfWidth = (contentWidth - gap) / 2;
 
     drawInfoBox(PDF_RESPONSIBLE_FIELDS.obra.label, os[PDF_RESPONSIBLE_FIELDS.obra.source], margin, currentY, wideLeft);
     drawInfoBox('DATA', new Date(os.createdAt).toLocaleDateString('pt-BR'), margin + wideLeft + gap, currentY, narrowRight);
     currentY += 19;
 
-    drawInfoBox(PDF_RESPONSIBLE_FIELDS.erione.label, os[PDF_RESPONSIBLE_FIELDS.erione.source], margin, currentY, contentWidth);
+    const registeredBy = String(os.ownerName || os.ownerUsername || '').trim();
+    if (registeredBy && registeredBy !== '-') {
+        drawInfoBox(PDF_RESPONSIBLE_FIELDS.erione.label, os[PDF_RESPONSIBLE_FIELDS.erione.source], margin, currentY, wideLeft);
+        drawInfoBox('REGISTRADO POR', registeredBy, margin + wideLeft + gap, currentY, narrowRight);
+    } else {
+        drawInfoBox(PDF_RESPONSIBLE_FIELDS.erione.label, os[PDF_RESPONSIBLE_FIELDS.erione.source], margin, currentY, contentWidth);
+    }
     currentY += 19;
+
+    const equipe = String(os.equipe || '').trim();
+    if (equipe) {
+        const equipeHeight = drawWrappedInfoBox('EQUIPE', equipe, margin, currentY, contentWidth);
+        currentY += equipeHeight + 4;
+    }
 
     drawInfoBox('OBRA', os.obraEquipamento, margin, currentY, contentWidth);
     currentY += 19;
 
-    const halfWidth = (contentWidth - gap) / 2;
     drawInfoBox('HORARIO INICIO', os.horarioInicio, margin, currentY, halfWidth);
     drawInfoBox('HORARIO FIM', os.horarioFim, margin + halfWidth + gap, currentY, halfWidth);
     currentY += 19;
 
-    drawInfoBox('LOCAL', os.local, margin, currentY, contentWidth);
+    const condicaoClimatica = String(os.condicaoClimatica || '').trim();
+    if (condicaoClimatica) {
+        drawInfoBox('LOCAL', os.local, margin, currentY, halfWidth);
+        drawInfoBox('CONDIÇÃO CLIMÁTICA', condicaoClimatica, margin + halfWidth + gap, currentY, halfWidth);
+    } else {
+        drawInfoBox('LOCAL', os.local, margin, currentY, contentWidth);
+    }
     currentY += 18;
 
     const drawBoxSection = (title, content) => {
-        const splitText = doc.splitTextToSize(content || '-', pageWidth - 28);
-        const textHeight = splitText.length * 5;
-        const totalHeight = textHeight + 18;
-
-        ensurePageSpace(totalHeight);
-
-        doc.setFillColor(232, 238, 249);
-        doc.roundedRect(margin, currentY, pageWidth - 28, 6, 1.5, 1.5, 'F');
-        doc.setFontSize(9);
-        doc.setFont(undefined, 'bold');
-        doc.setTextColor(30, 58, 138);
-        doc.text(title, margin + 2.5, currentY + 4.5);
-
-        doc.setDrawColor(203, 213, 225);
-        doc.roundedRect(margin, currentY, pageWidth - 28, totalHeight, 1.5, 1.5);
-
         doc.setFont(undefined, 'normal');
         doc.setFontSize(9);
-        doc.setTextColor(15, 23, 42);
-        doc.text(splitText, margin + 2.5, currentY + 12);
+        const horizontalPadding = 2.5;
+        const lineHeight = 5;
+        const fixedHeight = 18;
+        const remainingLines = doc.splitTextToSize(
+            sanitizeMultilineText(content),
+            contentWidth - (horizontalPadding * 2)
+        );
+        let isContinuation = false;
 
-        currentY += totalHeight + 5;
+        while (remainingLines.length > 0) {
+            const minimumBlockHeight = fixedHeight + lineHeight;
+            if (currentY + minimumBlockHeight > pageHeight - 20) {
+                doc.addPage();
+                currentY = 20;
+            }
+
+            const availableHeight = (pageHeight - 20) - currentY;
+            const maxLines = Math.max(1, Math.floor((availableHeight - fixedHeight) / lineHeight));
+            const visibleLines = remainingLines.splice(0, maxLines);
+            const totalHeight = fixedHeight + (visibleLines.length * lineHeight);
+
+            doc.setFillColor(232, 238, 249);
+            doc.roundedRect(margin, currentY, contentWidth, 6, 1.5, 1.5, 'F');
+            doc.setFontSize(9);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(30, 58, 138);
+            doc.text(`${title}${isContinuation ? ' (continuação)' : ''}`, margin + horizontalPadding, currentY + 4.5);
+
+            doc.setDrawColor(203, 213, 225);
+            doc.roundedRect(margin, currentY, contentWidth, totalHeight, 1.5, 1.5);
+
+            doc.setFont(undefined, 'normal');
+            doc.setFontSize(9);
+            doc.setTextColor(15, 23, 42);
+            doc.text(visibleLines, margin + horizontalPadding, currentY + 12);
+
+            currentY += totalHeight + 5;
+            if (remainingLines.length > 0) {
+                doc.addPage();
+                currentY = 20;
+                isContinuation = true;
+            }
+        }
+
     };
 
     drawBoxSection('Implantacao de Seguranca do Trabalho:', os.segurancaTrabalho);
